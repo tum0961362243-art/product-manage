@@ -83,7 +83,7 @@
         const Lock = (props) => <IconBase {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>;
         const Unlock = (props) => <IconBase {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></IconBase>;
         const Users = (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>;
-        const FileText = (props) => <IconBase {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></IconBase>;
+        const UserIcon = (props) => <IconBase {...props}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></IconBase>;
 
         // --- 常量 ---
         const DEFAULT_MARKETING_NODES = {
@@ -248,18 +248,15 @@
 
                     if (data && data.content) {
                         let content = data.content;
-                        // 数据结构迁移：将旧的 userPassword 迁移到 visitors 数组
                         if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: { visitors: [], logs: [] } };
                         if (!content.settings) content.settings = { visitors: [], logs: [] };
                         if (content.settings.userPassword) {
-                            // 旧版密码 -> 默认访客
                             if (!content.settings.visitors) content.settings.visitors = [];
                             if (content.settings.visitors.length === 0) {
                                 content.settings.visitors.push({ id: Date.now(), name: "默认访客", password: content.settings.userPassword });
                             }
                             delete content.settings.userPassword;
                         }
-                        // 确保 logs 数组存在
                         if (!content.settings.logs) content.settings.logs = [];
                         if (!content.settings.visitors) content.settings.visitors = [];
 
@@ -274,7 +271,6 @@
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'projects', filter: 'id=eq.main' }, (payload) => {
                             if (payload.new && payload.new.content) {
                                 let content = payload.new.content;
-                                // 实时同步时也做简单的结构检查
                                 if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: { visitors: [], logs: [] } };
                                 setAppData(content);
                             }
@@ -305,9 +301,6 @@
                 setAppData(prev => {
                     let newData = typeof newDataOrFn === 'function' ? newDataOrFn(prev) : newDataOrFn;
                     
-                    // 如果有操作行为，且不是管理员(或者你想记录所有人)，写入日志
-                    // 需求："管理员在后台可以看到哪个访客访问了页面，且是否进行了修改操作"
-                    // 这里我们记录所有人的修改操作，包括访客
                     if (logActionType && currentUser) {
                         const newLog = {
                             id: Date.now(),
@@ -317,7 +310,6 @@
                             action: logActionType,
                             detail: logDetail || ''
                         };
-                        // 限制日志数量，防止无限增长
                         const updatedLogs = [newLog, ...(newData.settings.logs || [])].slice(0, 200);
                         newData = { ...newData, settings: { ...newData.settings, logs: updatedLogs } };
                     }
@@ -348,8 +340,6 @@
                     setCurrentUser('管理员');
                     setShowLoginModal(false);
                     setInputPwd('');
-                    // 管理员登录不一定需要记录，或者也记录一下
-                    // handleSetAppData(d => d, '管理员登录', '进入后台');
                     alert("管理员登录成功！");
                 } else {
                     const visitors = appData.settings.visitors || [];
@@ -360,7 +350,6 @@
                         setCurrentUser(matchedVisitor.name);
                         setShowLoginModal(false);
                         setInputPwd('');
-                        // 记录访客登录日志
                         handleSetAppData(d => d, '访客登录', `访客 [${matchedVisitor.name}] 访问了系统`);
                         alert(`欢迎，${matchedVisitor.name}！编辑权限已解锁。`);
                     } else {
@@ -431,7 +420,6 @@
             const softDeleteProduct = (id) => { 
                 const p = appData.products.find(i=>i.id===id);
                 if(window.confirm('确定要移除这个项目吗？它将被移入回收站。')) updateProduct(id, 'deleted', true);
-                // 日志在 updateProduct 中会记录，但为了更明确，可以单独处理，这里暂用通用记录
             };
             const restoreProduct = (id) => updateProduct(id, 'deleted', false);
             const hardDeleteProduct = (id) => { 
@@ -466,7 +454,6 @@
                                 {syncStatus === 'error' && <span className="text-red-600 flex items-center gap-1"><CloudOff size={14}/> 同步失败</span>}
                             </div>
                             
-                            {/* 权限控制按钮区 */}
                             {role === 'guest' ? (
                                 <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-2 px-3 py-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 text-sm font-bold border border-slate-300">
                                     <Lock size={14} /> 解锁编辑
@@ -512,6 +499,7 @@
                                 softDeleteProduct={softDeleteProduct}
                                 customNodes={appData.customNodes}
                                 canEdit={canEdit}
+                                currentUser={currentUser}
                             />
                         )}
                         {view === 'product-detail' && activeProduct && (
@@ -534,7 +522,6 @@
                         )}
                     </main>
 
-                    {/* 登录弹窗 */}
                     {showLoginModal && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowLoginModal(false)}>
                             <div className="bg-white p-6 rounded-xl shadow-2xl w-80" onClick={e => e.stopPropagation()}>
@@ -546,7 +533,6 @@
                         </div>
                     )}
 
-                    {/* 管理员面板 (访客管理 & 日志) */}
                     {showAdminPanel && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowAdminPanel(false)}>
                             <div className="bg-white rounded-xl shadow-2xl w-[700px] h-[500px] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -557,7 +543,6 @@
                                     </div>
                                     <button onClick={() => setShowAdminPanel(false)} className="text-slate-400 hover:text-slate-600"><X size={18}/></button>
                                 </div>
-                                
                                 <div className="flex-1 overflow-y-auto p-6">
                                     {adminTab === 'visitors' ? (
                                         <div className="space-y-6">
@@ -604,7 +589,6 @@
                         </div>
                     )}
 
-                    {/* 回收站弹窗 */}
                     {showRecycleBin && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowRecycleBin(false)}>
                             <div className="bg-white rounded-xl shadow-2xl w-[600px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -628,20 +612,14 @@
             );
         };
 
-        const HomePage = ({ products, setProducts, fullProductList, navigateToProduct, updateProduct, softDeleteProduct, customNodes, canEdit }) => {
+        const HomePage = ({ products, setProducts, fullProductList, navigateToProduct, updateProduct, softDeleteProduct, customNodes, canEdit, currentUser }) => {
             const fileInputRefs = useRef({});
             const dragItem = useRef();
             const dragOverItem = useRef();
             const [historyModalProduct, setHistoryModalProduct] = useState(null);
 
-            const handleDragStart = (e, position) => { 
-                if(!canEdit) return;
-                dragItem.current = position; e.target.classList.add('opacity-50'); 
-            };
-            const handleDragEnter = (e, position) => { 
-                if(!canEdit) return;
-                dragOverItem.current = position; 
-            };
+            const handleDragStart = (e, position) => { if(!canEdit) return; dragItem.current = position; e.target.classList.add('opacity-50'); };
+            const handleDragEnter = (e, position) => { if(!canEdit) return; dragOverItem.current = position; };
             const handleDragEnd = (e) => {
                 if(!canEdit) return;
                 e.target.classList.remove('opacity-50');
@@ -691,6 +669,7 @@
                         id: Date.now(),
                         timestamp: new Date().toISOString(),
                         displayName: new Date().toLocaleString(),
+                        user: currentUser || '未知',
                         data: { name: p.name, level: p.level, launchDate: p.launchDate, image: p.image, basics: p.basics, ogc: p.ogc, calendarEvents: p.calendarEvents }
                     };
                     const newBackups = [snapshot, ...(p.backups || [])].slice(0, 10); 
@@ -751,7 +730,13 @@
                                         <div className="space-y-3">
                                             {historyModalProduct.backups.map(backup => (
                                                 <div key={backup.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-200 transition-colors">
-                                                    <div><div className="font-bold text-slate-700">{backup.displayName}</div><div className="text-xs text-slate-400 mt-1">含排期、OGC等全部数据</div></div>
+                                                    <div>
+                                                        <div className="font-bold text-slate-700">
+                                                            {backup.displayName} 
+                                                            {backup.user && <span className="ml-2 text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded">by {backup.user}</span>}
+                                                        </div>
+                                                        <div className="text-xs text-slate-400 mt-1">含排期、OGC等全部数据</div>
+                                                    </div>
                                                     <button onClick={() => handleRestore(historyModalProduct.id, backup.data)} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded text-sm font-medium transition-colors">回滚至此版本</button>
                                                 </div>
                                             ))}

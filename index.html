@@ -82,7 +82,8 @@
         const History = (props) => <IconBase {...props}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></IconBase>;
         const Lock = (props) => <IconBase {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>;
         const Unlock = (props) => <IconBase {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></IconBase>;
-        const Key = (props) => <IconBase {...props}><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></IconBase>;
+        const Users = (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>;
+        const FileText = (props) => <IconBase {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></IconBase>;
 
         // --- 常量 ---
         const DEFAULT_MARKETING_NODES = {
@@ -108,7 +109,7 @@
 
         const MATERIAL_OPTIONS = ['卖点海报', '创意海报', '产品视频', '创意视频', 'KOL种草', 'KOL二创', 'PR稿件', '倒计时海报', '好评海报'];
         const WEEK_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-        const ADMIN_PASSWORD = "258992"; // 管理员密码
+        const ADMIN_PASSWORD = "258992"; 
 
         // --- 工具函数 ---
         const formatDate = (date) => {
@@ -209,7 +210,8 @@
 
         // --- 主组件 ---
         const App = () => {
-            const [appData, setAppData] = useState({ products: [], customNodes: {}, settings: { userPassword: '' } });
+            // settings 现在包含 logs 和 visitors
+            const [appData, setAppData] = useState({ products: [], customNodes: {}, settings: { visitors: [], logs: [] } });
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
             const [syncStatus, setSyncStatus] = useState('syncing'); 
@@ -219,10 +221,15 @@
             
             // --- 权限管理状态 ---
             const [role, setRole] = useState('guest'); // 'guest' | 'user' | 'admin'
+            const [currentUser, setCurrentUser] = useState(null); // 当前登录用户名
             const [showLoginModal, setShowLoginModal] = useState(false);
-            const [showPwdMgmt, setShowPwdMgmt] = useState(false);
+            const [showAdminPanel, setShowAdminPanel] = useState(false);
             const [inputPwd, setInputPwd] = useState('');
-            const [newUserPwd, setNewUserPwd] = useState('');
+            
+            // Admin Panel State
+            const [adminTab, setAdminTab] = useState('visitors'); // 'visitors' | 'logs'
+            const [newVisitorName, setNewVisitorName] = useState('');
+            const [newVisitorPwd, setNewVisitorPwd] = useState('');
 
             const timeoutRef = useRef(null);
 
@@ -241,12 +248,24 @@
 
                     if (data && data.content) {
                         let content = data.content;
-                        // 兼容旧数据格式
-                        if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: {} };
-                        if (!content.settings) content.settings = { userPassword: '' }; // 默认无密码
+                        // 数据结构迁移：将旧的 userPassword 迁移到 visitors 数组
+                        if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: { visitors: [], logs: [] } };
+                        if (!content.settings) content.settings = { visitors: [], logs: [] };
+                        if (content.settings.userPassword) {
+                            // 旧版密码 -> 默认访客
+                            if (!content.settings.visitors) content.settings.visitors = [];
+                            if (content.settings.visitors.length === 0) {
+                                content.settings.visitors.push({ id: Date.now(), name: "默认访客", password: content.settings.userPassword });
+                            }
+                            delete content.settings.userPassword;
+                        }
+                        // 确保 logs 数组存在
+                        if (!content.settings.logs) content.settings.logs = [];
+                        if (!content.settings.visitors) content.settings.visitors = [];
+
                         setAppData(content);
                     } else {
-                        setAppData({ products: [], customNodes: {}, settings: { userPassword: '' } });
+                        setAppData({ products: [], customNodes: {}, settings: { visitors: [], logs: [] } });
                     }
                     setLoading(false); setSyncStatus('saved');
 
@@ -255,8 +274,8 @@
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'projects', filter: 'id=eq.main' }, (payload) => {
                             if (payload.new && payload.new.content) {
                                 let content = payload.new.content;
-                                if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: {} };
-                                if (!content.settings) content.settings = { userPassword: '' };
+                                // 实时同步时也做简单的结构检查
+                                if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: { visitors: [], logs: [] } };
                                 setAppData(content);
                             }
                         })
@@ -281,56 +300,102 @@
                 }, 1000); 
             };
 
-            const handleSetAppData = (newDataOrFn) => {
+            // 核心状态更新包装器：支持自动写入日志
+            const handleSetAppData = (newDataOrFn, logActionType = null, logDetail = null) => {
                 setAppData(prev => {
-                    const newVal = typeof newDataOrFn === 'function' ? newDataOrFn(prev) : newDataOrFn;
-                    saveToCloud(newVal);
-                    return newVal;
+                    let newData = typeof newDataOrFn === 'function' ? newDataOrFn(prev) : newDataOrFn;
+                    
+                    // 如果有操作行为，且不是管理员(或者你想记录所有人)，写入日志
+                    // 需求："管理员在后台可以看到哪个访客访问了页面，且是否进行了修改操作"
+                    // 这里我们记录所有人的修改操作，包括访客
+                    if (logActionType && currentUser) {
+                        const newLog = {
+                            id: Date.now(),
+                            timestamp: new Date().toISOString(),
+                            user: currentUser,
+                            role: role,
+                            action: logActionType,
+                            detail: logDetail || ''
+                        };
+                        // 限制日志数量，防止无限增长
+                        const updatedLogs = [newLog, ...(newData.settings.logs || [])].slice(0, 200);
+                        newData = { ...newData, settings: { ...newData.settings, logs: updatedLogs } };
+                    }
+
+                    saveToCloud(newData);
+                    return newData;
                 });
             };
 
-            const setProducts = (newProductsOrFn) => {
+            const setProducts = (newProductsOrFn, actionType, actionDetail) => {
                 handleSetAppData(prev => {
                     const newProducts = typeof newProductsOrFn === 'function' ? newProductsOrFn(prev.products) : newProductsOrFn;
                     return { ...prev, products: newProducts };
-                });
+                }, actionType, actionDetail);
             };
 
             const setCustomNodes = (newNodesOrFn) => {
                 handleSetAppData(prev => {
                     const newNodes = typeof newNodesOrFn === 'function' ? newNodesOrFn(prev.customNodes) : newNodesOrFn;
                     return { ...prev, customNodes: newNodes };
-                });
+                }, '修改营销节点', '更新了全局日历节点');
             };
 
             // --- 登录逻辑 ---
             const handleLogin = () => {
                 if (inputPwd === ADMIN_PASSWORD) {
                     setRole('admin');
+                    setCurrentUser('管理员');
                     setShowLoginModal(false);
                     setInputPwd('');
+                    // 管理员登录不一定需要记录，或者也记录一下
+                    // handleSetAppData(d => d, '管理员登录', '进入后台');
                     alert("管理员登录成功！");
-                } else if (appData.settings.userPassword && inputPwd === appData.settings.userPassword) {
-                    setRole('user');
-                    setShowLoginModal(false);
-                    setInputPwd('');
-                    alert("编辑权限已解锁！");
-                } else if (!appData.settings.userPassword && inputPwd) { 
-                    alert("尚未设置访问密码，请使用管理员密码登录。");
                 } else {
-                    alert("密码错误，请重试。");
+                    const visitors = appData.settings.visitors || [];
+                    const matchedVisitor = visitors.find(v => v.password === inputPwd);
+                    
+                    if (matchedVisitor) {
+                        setRole('user');
+                        setCurrentUser(matchedVisitor.name);
+                        setShowLoginModal(false);
+                        setInputPwd('');
+                        // 记录访客登录日志
+                        handleSetAppData(d => d, '访客登录', `访客 [${matchedVisitor.name}] 访问了系统`);
+                        alert(`欢迎，${matchedVisitor.name}！编辑权限已解锁。`);
+                    } else {
+                        alert("密码错误，请重试。");
+                    }
                 }
             };
 
-            const handleUpdateUserPassword = () => {
-                handleSetAppData(prev => ({ ...prev, settings: { ...prev.settings, userPassword: newUserPwd } }));
-                setShowPwdMgmt(false);
-                setNewUserPwd('');
-                alert("访问密码更新成功！");
+            // --- 管理员面板逻辑 ---
+            const handleAddVisitor = () => {
+                if (!newVisitorName || !newVisitorPwd) return alert("请填写名称和密码");
+                handleSetAppData(prev => ({
+                    ...prev,
+                    settings: {
+                        ...prev.settings,
+                        visitors: [...(prev.settings.visitors || []), { id: Date.now(), name: newVisitorName, password: newVisitorPwd }]
+                    }
+                }));
+                setNewVisitorName(''); setNewVisitorPwd('');
+            };
+
+            const handleDeleteVisitor = (id) => {
+                if(!confirm("确定删除该访客吗？")) return;
+                handleSetAppData(prev => ({
+                    ...prev,
+                    settings: {
+                        ...prev.settings,
+                        visitors: prev.settings.visitors.filter(v => v.id !== id)
+                    }
+                }));
             };
 
             // --- 业务逻辑 ---
             const updateProduct = (id, field, value) => {
+                const productName = appData.products.find(p => p.id === id)?.name || '未知产品';
                 setProducts(prev => {
                     let updated = prev.map(p => {
                         if (p.id !== id) return p;
@@ -348,10 +413,11 @@
                         }
                     }
                     return updated;
-                });
+                }, '修改产品信息', `修改了 [${productName}] 的 ${field}`);
             };
 
             const updateProductDeep = (id, pathArray, value) => {
+                const productName = appData.products.find(p => p.id === id)?.name || '未知产品';
                 setProducts(prev => prev.map(p => {
                     if (p.id !== id) return p;
                     const newP = { ...p };
@@ -359,18 +425,25 @@
                     for (let i = 0; i < pathArray.length - 1; i++) { current[pathArray[i]] = { ...current[pathArray[i]] }; current = current[pathArray[i]]; }
                     current[pathArray[pathArray.length - 1]] = value;
                     return newP;
-                }));
+                }), '更新详细规划', `更新了 [${productName}] 的排期或物料状态`);
             };
 
-            const softDeleteProduct = (id) => { if(window.confirm('确定要移除这个项目吗？它将被移入回收站。')) updateProduct(id, 'deleted', true); };
+            const softDeleteProduct = (id) => { 
+                const p = appData.products.find(i=>i.id===id);
+                if(window.confirm('确定要移除这个项目吗？它将被移入回收站。')) updateProduct(id, 'deleted', true);
+                // 日志在 updateProduct 中会记录，但为了更明确，可以单独处理，这里暂用通用记录
+            };
             const restoreProduct = (id) => updateProduct(id, 'deleted', false);
-            const hardDeleteProduct = (id) => { if(window.confirm('警告：此操作不可撤销！')) setProducts(prev => prev.filter(p => p.id !== id)); };
+            const hardDeleteProduct = (id) => { 
+                if(window.confirm('警告：此操作不可撤销！')) setProducts(prev => prev.filter(p => p.id !== id), '永久删除', `彻底删除了产品ID: ${id}`); 
+            };
             const navigateToProduct = (id) => { setActiveProductId(id); setView('product-detail'); };
 
             const activeProduct = appData.products.find(p => p.id === activeProductId);
             const activeProductsList = appData.products.filter(p => !p.deleted);
             const deletedProductsList = appData.products.filter(p => p.deleted);
 
+            // --- 界面渲染 ---
             if (loading) return <div className="h-screen flex flex-col items-center justify-center space-y-4"><div className="loader"></div><p className="text-slate-500 text-sm">正在加载数据...</p></div>;
             if (error === 'NETWORK_ERROR') return <div className="h-screen flex flex-col items-center justify-center text-red-500"><AlertTriangle size={48} className="mb-4"/><p>连接失败，请检查配置。</p><button onClick={()=>window.location.reload()} className="mt-4 px-4 py-2 bg-slate-100 rounded text-slate-700 text-sm">重试</button></div>;
 
@@ -401,12 +474,12 @@
                             ) : (
                                 <div className="flex items-center gap-2">
                                     {isAdmin && (
-                                        <button onClick={() => setShowPwdMgmt(true)} className="flex items-center gap-1 px-3 py-2 text-indigo-600 hover:bg-indigo-50 rounded-md text-sm transition-colors">
-                                            <Key size={14} /> 设置访问密码
+                                        <button onClick={() => setShowAdminPanel(true)} className="flex items-center gap-1 px-3 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md text-sm transition-colors font-medium">
+                                            <Users size={14} /> 用户与日志
                                         </button>
                                     )}
                                     <div className="flex items-center gap-1 px-3 py-2 bg-green-50 text-green-700 rounded-md text-sm border border-green-200">
-                                        <Unlock size={14} /> {isAdmin ? "管理员模式" : "已解锁编辑"}
+                                        <Unlock size={14} /> {currentUser}
                                     </div>
                                 </div>
                             )}
@@ -466,30 +539,66 @@
                         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowLoginModal(false)}>
                             <div className="bg-white p-6 rounded-xl shadow-2xl w-80" onClick={e => e.stopPropagation()}>
                                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Lock size={18}/> 权限验证</h3>
-                                <p className="text-xs text-slate-500 mb-4">请输入密码以解锁编辑功能。默认状态仅供浏览。</p>
+                                <p className="text-xs text-slate-500 mb-4">请输入管理员密码或访客密码以解锁编辑。</p>
                                 <input type="password" autoFocus className="w-full border p-2 rounded mb-4" placeholder="在此输入密码..." value={inputPwd} onChange={e => setInputPwd(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()} />
                                 <button onClick={handleLogin} className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">解锁</button>
                             </div>
                         </div>
                     )}
 
-                    {/* 密码管理弹窗 (仅管理员) */}
-                    {showPwdMgmt && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowPwdMgmt(false)}>
-                            <div className="bg-white p-6 rounded-xl shadow-2xl w-96" onClick={e => e.stopPropagation()}>
-                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Key size={18}/> 设置访问密码</h3>
-                                <p className="text-xs text-slate-500 mb-4">设置普通用户解锁编辑权限时需要输入的密码。</p>
-                                <div className="mb-4">
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">当前访问密码</label>
-                                    <div className="p-2 bg-slate-100 rounded text-sm text-slate-600 font-mono">{appData.settings.userPassword || '(未设置)'}</div>
+                    {/* 管理员面板 (访客管理 & 日志) */}
+                    {showAdminPanel && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowAdminPanel(false)}>
+                            <div className="bg-white rounded-xl shadow-2xl w-[700px] h-[500px] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                                <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
+                                    <div className="flex gap-4">
+                                        <button onClick={() => setAdminTab('visitors')} className={`pb-2 text-sm font-bold border-b-2 ${adminTab === 'visitors' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}>访客管理</button>
+                                        <button onClick={() => setAdminTab('logs')} className={`pb-2 text-sm font-bold border-b-2 ${adminTab === 'logs' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}>操作日志</button>
+                                    </div>
+                                    <button onClick={() => setShowAdminPanel(false)} className="text-slate-400 hover:text-slate-600"><X size={18}/></button>
                                 </div>
-                                <div className="mb-6">
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">新密码</label>
-                                    <input type="text" className="w-full border p-2 rounded text-sm" placeholder="输入新密码" value={newUserPwd} onChange={e => setNewUserPwd(e.target.value)} />
-                                </div>
-                                <div className="flex gap-3">
-                                    <button onClick={() => setShowPwdMgmt(false)} className="flex-1 py-2 text-slate-500 hover:bg-slate-50 rounded">取消</button>
-                                    <button onClick={handleUpdateUserPassword} className="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">保存设置</button>
+                                
+                                <div className="flex-1 overflow-y-auto p-6">
+                                    {adminTab === 'visitors' ? (
+                                        <div className="space-y-6">
+                                            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                                                <h4 className="text-sm font-bold text-indigo-800 mb-2">添加新访客</h4>
+                                                <div className="flex gap-3">
+                                                    <input className="flex-1 border rounded px-2 py-1 text-sm" placeholder="访客名称 (如: Agency A)" value={newVisitorName} onChange={e => setNewVisitorName(e.target.value)} />
+                                                    <input className="flex-1 border rounded px-2 py-1 text-sm" placeholder="设置密码" value={newVisitorPwd} onChange={e => setNewVisitorPwd(e.target.value)} />
+                                                    <button onClick={handleAddVisitor} className="bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700">添加</button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-slate-700 mb-3">现有访客列表</h4>
+                                                <div className="space-y-2">
+                                                    {(appData.settings.visitors || []).length === 0 && <div className="text-slate-400 text-sm text-center py-4">暂无访客，请添加</div>}
+                                                    {(appData.settings.visitors || []).map(v => (
+                                                        <div key={v.id} className="flex justify-between items-center p-3 bg-white border rounded shadow-sm">
+                                                            <div className="flex gap-4">
+                                                                <span className="font-bold text-slate-700 w-32 truncate">{v.name}</span>
+                                                                <span className="font-mono text-slate-500 bg-slate-100 px-2 rounded text-xs py-0.5">PWD: {v.password}</span>
+                                                            </div>
+                                                            <button onClick={() => handleDeleteVisitor(v.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded"><Trash2 size={14}/></button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {(appData.settings.logs || []).length === 0 && <div className="text-center py-10 text-slate-400">暂无日志记录</div>}
+                                            {(appData.settings.logs || []).map(log => (
+                                                <div key={log.id} className="text-sm border-b pb-2 last:border-0">
+                                                    <div className="flex justify-between mb-1">
+                                                        <span className="font-bold text-slate-700">{log.user} <span className="text-xs font-normal text-slate-400 ml-1">({new Date(log.timestamp).toLocaleString()})</span></span>
+                                                        <span className={`text-xs px-2 py-0.5 rounded ${log.action === '访客登录' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{log.action}</span>
+                                                    </div>
+                                                    <div className="text-slate-500 pl-2 border-l-2 border-slate-200">{log.detail}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -545,7 +654,7 @@
                 const dragItemContent = listCopy[dragIndexFull];
                 listCopy.splice(dragIndexFull, 1);
                 listCopy.splice(dropIndexFull, 0, dragItemContent);
-                setProducts(listCopy);
+                setProducts(listCopy, '重排产品', '在首页拖拽调整了产品顺序');
                 dragItem.current = null;
                 dragOverItem.current = null;
             };
@@ -571,7 +680,7 @@
                     calendarEvents: defaultEvents,
                     backups: []
                 };
-                setProducts(prev => [...prev, newProduct]);
+                setProducts(prev => [...prev, newProduct], '新增产品', '创建了新产品卡片');
             };
 
             const handleBackup = (e, productId) => {
@@ -586,7 +695,7 @@
                     };
                     const newBackups = [snapshot, ...(p.backups || [])].slice(0, 10); 
                     return { ...p, backups: newBackups };
-                }));
+                }), '手动备份', `备份了产品ID: ${productId}`);
                 alert('备份成功！');
             };
 
@@ -595,7 +704,7 @@
                 setProducts(prev => prev.map(p => {
                     if (p.id !== productId) return p;
                     return { ...p, ...backupData, backups: p.backups }; 
-                }));
+                }), '版本回滚', `回滚产品ID: ${productId} 到历史版本`);
                 setHistoryModalProduct(null);
             };
 

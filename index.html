@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>产品上市全案项目管理 (Supabase协作版)</title>
+    
+    <!-- 引入 React 和 ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    
+    <!-- 引入 Babel 用于解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        // ==========================================================================================
+        // 🔥🔥🔥 Supabase 配置已自动填入 🔥🔥🔥
+        // ==========================================================================================
+        const supabaseUrl = "https://rbyvnkitojzfpkygrqkf.supabase.co"; 
+        const supabaseKey = "sb_publishable_FtRFRTIPl8Ep6D7JW8GYcg_qFm4iobs";
+        // ==========================================================================================
+
+        let supabaseClient = null;
+        
+        try {
+            const { createClient } = window.supabase;
+            supabaseClient = createClient(supabaseUrl, supabaseKey);
+            window.dbConfigured = true;
+        } catch (e) {
+            console.error("SDK 初始化失败", e);
+            window.dbError = e.message;
+        }
+    </script>
+
+    <style>
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .loader { border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #6366f1; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* 拖拽相关样式 */
+        .draggable-item { cursor: grab; }
+        .draggable-item:active { cursor: grabbing; }
+        .drag-over { border-color: #6366f1 !important; transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        /* 禁用状态样式 */
+        .disabled-area { pointer-events: none; opacity: 0.7; }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- 图标组件 ---
+        const IconBase = ({ children, ...props }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>{children}</svg>);
+        const Calendar = (props) => <IconBase {...props}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></IconBase>;
+        const ChevronLeft = (props) => <IconBase {...props}><path d="m15 18-6-6 6-6"/></IconBase>;
+        const ChevronRight = (props) => <IconBase {...props}><path d="m9 18 6-6-6-6"/></IconBase>;
+        const Upload = (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></IconBase>;
+        const CheckSquare = (props) => <IconBase {...props}><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></IconBase>;
+        const Square = (props) => <IconBase {...props}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></IconBase>;
+        const LayoutGrid = (props) => <IconBase {...props}><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></IconBase>;
+        const Star = (props) => <IconBase {...props}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></IconBase>;
+        const X = (props) => <IconBase {...props}><path d="M18 6 6 18"/><path d="m6 6 18 18"/></IconBase>;
+        const Trash2 = (props) => <IconBase {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></IconBase>;
+        const RefreshCcw = (props) => <IconBase {...props}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></IconBase>;
+        const ArrowLeft = (props) => <IconBase {...props}><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></IconBase>;
+        const ArrowRight = (props) => <IconBase {...props}><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></IconBase>;
+        const Cloud = (props) => <IconBase {...props}><path d="M17.5 19c0-1.7-1.3-3-3-3h-1.1c-.5-2.3-2.5-4-4.9-4-2.8 0-5 2.2-5 5v2h14z"/></IconBase>;
+        const CloudOff = (props) => <IconBase {...props}><path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 7h1.8a3 3 0 0 0 0 6h9.5"/><line x1="2" y1="2" x2="22" y2="22"/></IconBase>;
+        const AlertTriangle = (props) => <IconBase {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></IconBase>;
+        const Settings = (props) => <IconBase {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></IconBase>;
+        const GripVertical = (props) => <IconBase {...props}><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></IconBase>;
+        const Plus = (props) => <IconBase {...props}><path d="M5 12h14"/><path d="M12 5v14"/></IconBase>;
+        const Save = (props) => <IconBase {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconBase>;
+        const History = (props) => <IconBase {...props}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></IconBase>;
+        const Lock = (props) => <IconBase {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>;
+        const Unlock = (props) => <IconBase {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></IconBase>;
+        const Key = (props) => <IconBase {...props}><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></IconBase>;
+
+        // --- 常量 ---
+        const DEFAULT_MARKETING_NODES = {
+            '01-01': '元旦', '02-14': '情人节', '03-08': '妇女节', '03-12': '植树节',
+            '04-01': '愚人节', '05-01': '劳动节', '05-04': '青年节', '05-20': '520大促',
+            '06-01': '儿童节', '06-18': '618大促', '07-01': '建党节', '08-01': '建军节',
+            '09-10': '教师节', '10-01': '国庆节', '10-24': '程序员节', '10-31': '万圣节',
+            '11-11': '双11大促', '11-27': '黑色星期五', '12-12': '双12大促',
+            '12-24': '平安夜', '12-25': '圣诞节',
+            '02-04': '立春', '02-19': '雨水', '03-05': '惊蛰', '03-20': '春分',
+            '04-04': '清明', '04-19': '谷雨', '05-05': '立夏', '05-21': '小满',
+            '06-05': '芒种', '06-21': '夏至', '07-07': '小暑', '07-22': '大暑',
+            '08-07': '立秋', '08-23': '处暑', '09-07': '白露', '09-23': '秋分',
+            '10-08': '寒露', '10-23': '霜降', '11-07': '立冬', '11-22': '小雪',
+            '12-07': '大雪', '12-21': '冬至', '01-05': '小寒', '01-20': '大寒'
+        };
+
+        const LAUNCH_TEMPLATE = {
+            '-7': ['KOL种草'], '-3': ['倒计时海报'], '0': ['卖点海报'], '1': ['卖点海报'],
+            '2': ['卖点海报'], '3': ['卖点海报'], '7': ['产品视频'], '14': ['创意视频'],
+            '18': ['KOL二创'], '24': ['好评海报']
+        };
+
+        const MATERIAL_OPTIONS = ['卖点海报', '创意海报', '产品视频', '创意视频', 'KOL种草', 'KOL二创', 'PR稿件', '倒计时海报', '好评海报'];
+        const WEEK_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+        const ADMIN_PASSWORD = "258992"; // 管理员密码
+
+        // --- 工具函数 ---
+        const formatDate = (date) => {
+            if (!date) return '';
+            const d = new Date(date);
+            if (isNaN(d.getTime())) return '';
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const addDays = (dateStr, days) => {
+            const date = new Date(dateStr);
+            date.setDate(date.getDate() + days);
+            return formatDate(date);
+        };
+
+        const getMarketingNode = (dateStr, customNodes = {}) => {
+            if(!dateStr) return null;
+            const parts = dateStr.split('-');
+            if(parts.length !== 3) return null;
+            if (customNodes[dateStr]) return customNodes[dateStr];
+            const key = `${parts[1]}-${parts[2]}`;
+            return DEFAULT_MARKETING_NODES[key] || null;
+        };
+
+        const generateLaunchCycleDates = (launchDate) => {
+            if (!launchDate) return [];
+            const dates = [];
+            for (let i = -7; i < 0; i++) dates.push({ date: addDays(launchDate, i), type: 'pre', dayOffset: i });
+            dates.push({ date: launchDate, type: 'launch', dayOffset: 0 });
+            for (let i = 1; i <= 35; i++) dates.push({ date: addDays(launchDate, i), type: 'post', dayOffset: i });
+            return dates;
+        };
+
+        const generateDefaultEvents = (launchDate, customNodes = {}) => {
+            const events = {};
+            const launchDateObj = new Date(launchDate);
+            const sortedOffsets = Object.keys(LAUNCH_TEMPLATE).map(Number).sort((a, b) => a - b);
+            let accumulatedDelay = 0;
+
+            sortedOffsets.forEach(offset => {
+                const items = LAUNCH_TEMPLATE[offset];
+                const isException = items.some(item => item.includes('倒计时'));
+                let targetDate = new Date(launchDateObj);
+                
+                if (offset < 0) {
+                    targetDate.setDate(targetDate.getDate() + offset);
+                    if (!isException) {
+                        const day = targetDate.getDay();
+                        if (day === 0) targetDate.setDate(targetDate.getDate() - 2); 
+                        if (day === 6) targetDate.setDate(targetDate.getDate() - 1); 
+                    }
+                } else {
+                    targetDate.setDate(targetDate.getDate() + offset + accumulatedDelay);
+                    if (!isException) {
+                        const day = targetDate.getDay();
+                        if (day === 6) { accumulatedDelay += 2; targetDate.setDate(targetDate.getDate() + 2); } 
+                        else if (day === 0) { accumulatedDelay += 1; targetDate.setDate(targetDate.getDate() + 1); }
+                    }
+                }
+                const dateStr = formatDate(targetDate);
+                if (!events[dateStr]) events[dateStr] = [];
+                items.forEach(content => {
+                    if(!events[dateStr].some(e => e.content === content)) events[dateStr].push({ type: 'tag', content });
+                });
+            });
+
+            const cycleDates = generateLaunchCycleDates(launchDate); 
+            cycleDates.forEach(dayObj => {
+                const dateStr = dayObj.date;
+                const nodeName = getMarketingNode(dateStr, customNodes);
+                if (nodeName) {
+                    if (!events[dateStr]) events[dateStr] = [];
+                    if (!events[dateStr].some(e => e.content === '创意海报')) events[dateStr].push({ type: 'tag', content: '创意海报' });
+                }
+            });
+            return events;
+        };
+
+        const getDayLabel = (offset) => {
+            if (offset === 0) return '上市日';
+            if (offset < 0) return `T${offset}`;
+            return `T+${offset}`;
+        };
+
+        const PRODUCT_COLORS = [
+            { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200', dot: 'bg-blue-500' },
+            { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+            { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200', dot: 'bg-purple-500' },
+            { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-200', dot: 'bg-amber-500' },
+            { bg: 'bg-rose-100', text: 'text-rose-800', border: 'border-rose-200', dot: 'bg-rose-500' },
+            { bg: 'bg-cyan-100', text: 'text-cyan-800', border: 'border-cyan-200', dot: 'bg-cyan-500' },
+        ];
+
+        const getProductColor = (id) => PRODUCT_COLORS[id % PRODUCT_COLORS.length] || PRODUCT_COLORS[0];
+
+        // --- 主组件 ---
+        const App = () => {
+            const [appData, setAppData] = useState({ products: [], customNodes: {}, settings: { userPassword: '' } });
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [syncStatus, setSyncStatus] = useState('syncing'); 
+            const [view, setView] = useState('home'); 
+            const [activeProductId, setActiveProductId] = useState(null);
+            const [showRecycleBin, setShowRecycleBin] = useState(false);
+            
+            // --- 权限管理状态 ---
+            const [role, setRole] = useState('guest'); // 'guest' | 'user' | 'admin'
+            const [showLoginModal, setShowLoginModal] = useState(false);
+            const [showPwdMgmt, setShowPwdMgmt] = useState(false);
+            const [inputPwd, setInputPwd] = useState('');
+            const [newUserPwd, setNewUserPwd] = useState('');
+
+            const timeoutRef = useRef(null);
+
+            // 初始化：从云端拉取数据
+            useEffect(() => {
+                if (window.dbConfigured === false) { setError('CONFIG_MISSING'); setLoading(false); return; }
+                if (window.dbError) { setError('INIT_FAILED'); setLoading(false); return; }
+                initRealtimeSync();
+            }, []);
+
+            const initRealtimeSync = async () => {
+                if (!supabaseClient) return;
+                try {
+                    const { data, error } = await supabaseClient.from('projects').select('content').eq('id', 'main').single();
+                    if (error && error.code !== 'PGRST116') throw error;
+
+                    if (data && data.content) {
+                        let content = data.content;
+                        // 兼容旧数据格式
+                        if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: {} };
+                        if (!content.settings) content.settings = { userPassword: '' }; // 默认无密码
+                        setAppData(content);
+                    } else {
+                        setAppData({ products: [], customNodes: {}, settings: { userPassword: '' } });
+                    }
+                    setLoading(false); setSyncStatus('saved');
+
+                    const channel = supabaseClient
+                        .channel('public:projects')
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects', filter: 'id=eq.main' }, (payload) => {
+                            if (payload.new && payload.new.content) {
+                                let content = payload.new.content;
+                                if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: {} };
+                                if (!content.settings) content.settings = { userPassword: '' };
+                                setAppData(content);
+                            }
+                        })
+                        .subscribe();
+                    return () => { supabaseClient.removeChannel(channel); };
+                } catch (err) {
+                    console.error("Sync error:", err);
+                    setError('NETWORK_ERROR'); setLoading(false); setSyncStatus('error');
+                }
+            };
+
+            const saveToCloud = (newData) => {
+                if (!supabaseClient) return;
+                setSyncStatus('syncing');
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                timeoutRef.current = setTimeout(async () => {
+                    try {
+                        const { error } = await supabaseClient.from('projects').upsert({ id: 'main', content: newData });
+                        if (error) throw error;
+                        setSyncStatus('saved');
+                    } catch (e) { console.error("Save error:", e); setSyncStatus('error'); }
+                }, 1000); 
+            };
+
+            const handleSetAppData = (newDataOrFn) => {
+                setAppData(prev => {
+                    const newVal = typeof newDataOrFn === 'function' ? newDataOrFn(prev) : newDataOrFn;
+                    saveToCloud(newVal);
+                    return newVal;
+                });
+            };
+
+            const setProducts = (newProductsOrFn) => {
+                handleSetAppData(prev => {
+                    const newProducts = typeof newProductsOrFn === 'function' ? newProductsOrFn(prev.products) : newProductsOrFn;
+                    return { ...prev, products: newProducts };
+                });
+            };
+
+            const setCustomNodes = (newNodesOrFn) => {
+                handleSetAppData(prev => {
+                    const newNodes = typeof newNodesOrFn === 'function' ? newNodesOrFn(prev.customNodes) : newNodesOrFn;
+                    return { ...prev, customNodes: newNodes };
+                });
+            };
+
+            // --- 登录逻辑 ---
+            const handleLogin = () => {
+                if (inputPwd === ADMIN_PASSWORD) {
+                    setRole('admin');
+                    setShowLoginModal(false);
+                    setInputPwd('');
+                    alert("管理员登录成功！");
+                } else if (appData.settings.userPassword && inputPwd === appData.settings.userPassword) {
+                    setRole('user');
+                    setShowLoginModal(false);
+                    setInputPwd('');
+                    alert("编辑权限已解锁！");
+                } else if (!appData.settings.userPassword && inputPwd) { 
+                    alert("尚未设置访问密码，请使用管理员密码登录。");
+                } else {
+                    alert("密码错误，请重试。");
+                }
+            };
+
+            const handleUpdateUserPassword = () => {
+                handleSetAppData(prev => ({ ...prev, settings: { ...prev.settings, userPassword: newUserPwd } }));
+                setShowPwdMgmt(false);
+                setNewUserPwd('');
+                alert("访问密码更新成功！");
+            };
+
+            // --- 业务逻辑 ---
+            const updateProduct = (id, field, value) => {
+                setProducts(prev => {
+                    let updated = prev.map(p => {
+                        if (p.id !== id) return p;
+                        if (field === 'launchDate' && value !== p.launchDate) {
+                            const confirmRegen = window.confirm("检测到上市时间已修改。\n\n是否重新生成默认规划？");
+                            if (confirmRegen) return { ...p, [field]: value, calendarEvents: generateDefaultEvents(value, appData.customNodes) };
+                        }
+                        return { ...p, [field]: value };
+                    });
+                    if (field === 'level') {
+                        const targetIndex = updated.findIndex(p => p.id === id);
+                        if (targetIndex > -1) {
+                            const item = updated[targetIndex];
+                            if (value === '重点品') { updated.splice(targetIndex, 1); updated.unshift(item); }
+                        }
+                    }
+                    return updated;
+                });
+            };
+
+            const updateProductDeep = (id, pathArray, value) => {
+                setProducts(prev => prev.map(p => {
+                    if (p.id !== id) return p;
+                    const newP = { ...p };
+                    let current = newP;
+                    for (let i = 0; i < pathArray.length - 1; i++) { current[pathArray[i]] = { ...current[pathArray[i]] }; current = current[pathArray[i]]; }
+                    current[pathArray[pathArray.length - 1]] = value;
+                    return newP;
+                }));
+            };
+
+            const softDeleteProduct = (id) => { if(window.confirm('确定要移除这个项目吗？它将被移入回收站。')) updateProduct(id, 'deleted', true); };
+            const restoreProduct = (id) => updateProduct(id, 'deleted', false);
+            const hardDeleteProduct = (id) => { if(window.confirm('警告：此操作不可撤销！')) setProducts(prev => prev.filter(p => p.id !== id)); };
+            const navigateToProduct = (id) => { setActiveProductId(id); setView('product-detail'); };
+
+            const activeProduct = appData.products.find(p => p.id === activeProductId);
+            const activeProductsList = appData.products.filter(p => !p.deleted);
+            const deletedProductsList = appData.products.filter(p => p.deleted);
+
+            if (loading) return <div className="h-screen flex flex-col items-center justify-center space-y-4"><div className="loader"></div><p className="text-slate-500 text-sm">正在加载数据...</p></div>;
+            if (error === 'NETWORK_ERROR') return <div className="h-screen flex flex-col items-center justify-center text-red-500"><AlertTriangle size={48} className="mb-4"/><p>连接失败，请检查配置。</p><button onClick={()=>window.location.reload()} className="mt-4 px-4 py-2 bg-slate-100 rounded text-slate-700 text-sm">重试</button></div>;
+
+            const canEdit = role !== 'guest';
+            const isAdmin = role === 'admin';
+
+            return (
+                <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-10">
+                    <header className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-40 shadow-sm flex justify-between items-center">
+                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView('home')}>
+                            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                                <LayoutGrid className="text-white w-5 h-5" />
+                            </div>
+                            <h1 className="text-xl font-bold text-slate-800">产品上市全案项目管理 <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded ml-2 border border-green-200">Supabase</span></h1>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 text-xs mr-4">
+                                {syncStatus === 'syncing' && <span className="text-amber-600 flex items-center gap-1"><span className="loader" style={{width:12, height:12, borderWidth:2}}></span> 同步中...</span>}
+                                {syncStatus === 'saved' && <span className="text-green-600 flex items-center gap-1"><Cloud size={14}/> 已同步</span>}
+                                {syncStatus === 'error' && <span className="text-red-600 flex items-center gap-1"><CloudOff size={14}/> 同步失败</span>}
+                            </div>
+                            
+                            {/* 权限控制按钮区 */}
+                            {role === 'guest' ? (
+                                <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-2 px-3 py-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 text-sm font-bold border border-slate-300">
+                                    <Lock size={14} /> 解锁编辑
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    {isAdmin && (
+                                        <button onClick={() => setShowPwdMgmt(true)} className="flex items-center gap-1 px-3 py-2 text-indigo-600 hover:bg-indigo-50 rounded-md text-sm transition-colors">
+                                            <Key size={14} /> 设置访问密码
+                                        </button>
+                                    )}
+                                    <div className="flex items-center gap-1 px-3 py-2 bg-green-50 text-green-700 rounded-md text-sm border border-green-200">
+                                        <Unlock size={14} /> {isAdmin ? "管理员模式" : "已解锁编辑"}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="h-6 w-px bg-slate-200 mx-2"></div>
+
+                            {view === 'home' && (
+                                <>
+                                    <button onClick={() => setView('master')} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors font-medium text-sm"><Calendar className="w-4 h-4" /> 整体排期</button>
+                                    {canEdit && (
+                                        <button onClick={() => setShowRecycleBin(true)} className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors text-sm relative">
+                                            <Trash2 className="w-4 h-4" /> 回收站
+                                            {deletedProductsList.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>}
+                                        </button>
+                                    )}
+                                </>
+                            )}
+                            {view !== 'home' && <button onClick={() => setView('home')} className="flex items-center gap-2 text-slate-500 hover:text-slate-800"><ArrowLeft className="w-4 h-4" /> 返回首页</button>}
+                        </div>
+                    </header>
+
+                    <main className="p-6 max-w-7xl mx-auto">
+                        {view === 'home' && (
+                            <HomePage 
+                                products={activeProductsList} 
+                                setProducts={setProducts} 
+                                fullProductList={appData.products} 
+                                navigateToProduct={navigateToProduct} 
+                                updateProduct={updateProduct}
+                                softDeleteProduct={softDeleteProduct}
+                                customNodes={appData.customNodes}
+                                canEdit={canEdit}
+                            />
+                        )}
+                        {view === 'product-detail' && activeProduct && (
+                            <ProductDetailPage 
+                                product={activeProduct} 
+                                updateProduct={updateProduct}
+                                updateProductDeep={updateProductDeep}
+                                customNodes={appData.customNodes}
+                                canEdit={canEdit}
+                            />
+                        )}
+                        {view === 'master' && (
+                            <MasterCalendarPage 
+                                products={activeProductsList} 
+                                navigateToProduct={navigateToProduct} 
+                                customNodes={appData.customNodes}
+                                setCustomNodes={setCustomNodes}
+                                canEdit={canEdit}
+                            />
+                        )}
+                    </main>
+
+                    {/* 登录弹窗 */}
+                    {showLoginModal && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowLoginModal(false)}>
+                            <div className="bg-white p-6 rounded-xl shadow-2xl w-80" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Lock size={18}/> 权限验证</h3>
+                                <p className="text-xs text-slate-500 mb-4">请输入密码以解锁编辑功能。默认状态仅供浏览。</p>
+                                <input type="password" autoFocus className="w-full border p-2 rounded mb-4" placeholder="在此输入密码..." value={inputPwd} onChange={e => setInputPwd(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()} />
+                                <button onClick={handleLogin} className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">解锁</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 密码管理弹窗 (仅管理员) */}
+                    {showPwdMgmt && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowPwdMgmt(false)}>
+                            <div className="bg-white p-6 rounded-xl shadow-2xl w-96" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Key size={18}/> 设置访问密码</h3>
+                                <p className="text-xs text-slate-500 mb-4">设置普通用户解锁编辑权限时需要输入的密码。</p>
+                                <div className="mb-4">
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">当前访问密码</label>
+                                    <div className="p-2 bg-slate-100 rounded text-sm text-slate-600 font-mono">{appData.settings.userPassword || '(未设置)'}</div>
+                                </div>
+                                <div className="mb-6">
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">新密码</label>
+                                    <input type="text" className="w-full border p-2 rounded text-sm" placeholder="输入新密码" value={newUserPwd} onChange={e => setNewUserPwd(e.target.value)} />
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowPwdMgmt(false)} className="flex-1 py-2 text-slate-500 hover:bg-slate-50 rounded">取消</button>
+                                    <button onClick={handleUpdateUserPassword} className="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">保存设置</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 回收站弹窗 */}
+                    {showRecycleBin && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowRecycleBin(false)}>
+                            <div className="bg-white rounded-xl shadow-2xl w-[600px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                                <div className="p-6 border-b flex justify-between items-center"><h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><Trash2 className="text-slate-400" /> 回收站</h3><button onClick={() => setShowRecycleBin(false)} className="text-slate-400 hover:text-slate-600"><X /></button></div>
+                                <div className="p-6 overflow-y-auto flex-1">
+                                    {deletedProductsList.length === 0 ? <div className="text-center py-10 text-slate-400"><Trash2 className="w-12 h-12 mx-auto mb-3 opacity-20" /><p>回收站是空的</p></div> : (
+                                        <div className="space-y-3">
+                                            {deletedProductsList.map(p => (
+                                                <div key={p.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
+                                                    <div><div className="font-bold text-slate-700">{p.name}</div><div className="text-xs text-slate-400 mt-1">原定上市: {p.launchDate}</div></div>
+                                                    <div className="flex gap-2"><button onClick={() => restoreProduct(p.id)} className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded text-sm transition-colors"><RefreshCcw size={14} /> 恢复</button><button onClick={() => hardDeleteProduct(p.id)} className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded text-sm transition-colors"><X size={14} /> 彻底删除</button></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const HomePage = ({ products, setProducts, fullProductList, navigateToProduct, updateProduct, softDeleteProduct, customNodes, canEdit }) => {
+            const fileInputRefs = useRef({});
+            const dragItem = useRef();
+            const dragOverItem = useRef();
+            const [historyModalProduct, setHistoryModalProduct] = useState(null);
+
+            const handleDragStart = (e, position) => { 
+                if(!canEdit) return;
+                dragItem.current = position; e.target.classList.add('opacity-50'); 
+            };
+            const handleDragEnter = (e, position) => { 
+                if(!canEdit) return;
+                dragOverItem.current = position; 
+            };
+            const handleDragEnd = (e) => {
+                if(!canEdit) return;
+                e.target.classList.remove('opacity-50');
+                if (dragItem.current === undefined || dragOverItem.current === undefined || dragItem.current === dragOverItem.current) { dragItem.current = null; dragOverItem.current = null; return; }
+                const listCopy = [...fullProductList];
+                const dragId = products[dragItem.current].id;
+                const dropId = products[dragOverItem.current].id;
+                const dragIndexFull = listCopy.findIndex(p => p.id === dragId);
+                const dropIndexFull = listCopy.findIndex(p => p.id === dropId);
+                const dragItemContent = listCopy[dragIndexFull];
+                listCopy.splice(dragIndexFull, 1);
+                listCopy.splice(dropIndexFull, 0, dragItemContent);
+                setProducts(listCopy);
+                dragItem.current = null;
+                dragOverItem.current = null;
+            };
+
+            const handleImageUpload = (id, e) => {
+                if(!canEdit) return;
+                const file = e.target.files[0];
+                if (file) {
+                    if(file.size > 500 * 1024) { alert("图片需小于500KB"); return; }
+                    const reader = new FileReader();
+                    reader.onloadend = () => updateProduct(id, 'image', reader.result);
+                    reader.readAsDataURL(file);
+                }
+            };
+            const addNewProduct = () => {
+                const newId = fullProductList.length > 0 ? Math.max(...fullProductList.map(p => p.id)) + 1 : 1;
+                const launchDate = formatDate(new Date());
+                const defaultEvents = generateDefaultEvents(launchDate, customNodes);
+                const newProduct = {
+                    id: newId, name: "新产品 (已自动规划)", level: "非重点品", deleted: false, launchDate: launchDate, image: null,
+                    basics: { prototype: false, introFile: false, productImages: false },
+                    ogc: { detailPage: { done: false, remark: '设计中' }, sellingPointPoster: { done: false, remark: '' }, creativePoster: { done: false, remark: '' }, productVideo: { done: false, remark: '' }, creativeVideo: { done: false, remark: '' } },
+                    calendarEvents: defaultEvents,
+                    backups: []
+                };
+                setProducts(prev => [...prev, newProduct]);
+            };
+
+            const handleBackup = (e, productId) => {
+                e.stopPropagation();
+                setProducts(prev => prev.map(p => {
+                    if (p.id !== productId) return p;
+                    const snapshot = {
+                        id: Date.now(),
+                        timestamp: new Date().toISOString(),
+                        displayName: new Date().toLocaleString(),
+                        data: { name: p.name, level: p.level, launchDate: p.launchDate, image: p.image, basics: p.basics, ogc: p.ogc, calendarEvents: p.calendarEvents }
+                    };
+                    const newBackups = [snapshot, ...(p.backups || [])].slice(0, 10); 
+                    return { ...p, backups: newBackups };
+                }));
+                alert('备份成功！');
+            };
+
+            const handleRestore = (productId, backupData) => {
+                if(!confirm('确定要回滚到此版本吗？当前未备份的内容将丢失。')) return;
+                setProducts(prev => prev.map(p => {
+                    if (p.id !== productId) return p;
+                    return { ...p, ...backupData, backups: p.backups }; 
+                }));
+                setHistoryModalProduct(null);
+            };
+
+            return (
+                <div>
+                    <div className="flex justify-between items-end mb-6">
+                        <div><h2 className="text-2xl font-bold text-slate-800">产品看板</h2><p className="text-slate-500 text-sm mt-1">{canEdit ? "支持拖拽排序 | 重点品自动置顶" : "当前为只读模式"}</p></div>
+                        {canEdit && <button onClick={addNewProduct} className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition shadow-sm font-medium">+ 新增产品项目</button>}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {products.map((product, index) => (
+                            <div key={product.id} className={`group bg-white rounded-xl shadow-sm border-2 transition-all hover:shadow-lg relative overflow-hidden flex flex-col ${canEdit ? 'draggable-item' : ''} ${product.level === '重点品' ? 'border-orange-200' : 'border-transparent'}`}
+                                draggable={canEdit} onDragStart={(e) => handleDragStart(e, index)} onDragEnter={(e) => handleDragEnter(e, index)} onDragEnd={handleDragEnd} onDragOver={(e) => e.preventDefault()}>
+                                {canEdit && <div className="absolute top-2 left-2 z-20 text-white/50 group-hover:text-white cursor-grab p-1 bg-black/20 rounded backdrop-blur-sm" title="长按拖动调整顺序"><GripVertical size={16} /></div>}
+                                {product.level === '重点品' && <div className="absolute top-0 right-0 bg-orange-100 text-orange-600 px-3 py-1 rounded-bl-lg text-xs font-bold z-10 flex items-center gap-1"><Star className="w-3 h-3 fill-current" /> 重点</div>}
+                                <div className={`h-48 bg-slate-100 relative transition-colors flex items-center justify-center overflow-hidden ${!canEdit ? 'pointer-events-none' : ''}`}>
+                                    {product.image ? <img src={product.image} alt={product.name} className="w-full h-full object-cover pointer-events-none" /> : <div className="text-slate-400 flex flex-col items-center"><div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mb-2"><span className="text-2xl font-bold text-slate-300">{product.name.charAt(0)}</span></div><span className="text-xs">点击下方按钮上传封面</span></div>}
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRefs.current[product.id]?.click()}><div className="text-white flex flex-col items-center"><Upload className="w-6 h-6 mb-1" /><span className="text-xs">更换图片</span></div><input type="file" ref={el => fileInputRefs.current[product.id] = el} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(product.id, e)} /></div>
+                                </div>
+                                <div className={`p-5 flex-1 flex flex-col ${!canEdit ? 'pointer-events-none' : ''}`}>
+                                    <div className="mb-4"><label className="text-xs text-slate-400 block mb-1">产品名称</label><input type="text" value={product.name} onChange={(e) => updateProduct(product.id, 'name', e.target.value)} className="w-full text-lg font-bold text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none bg-transparent" /></div>
+                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                        <div><label className="text-xs text-slate-400 block mb-1">上市时间</label><input type="date" value={product.launchDate} onChange={(e) => updateProduct(product.id, 'launchDate', e.target.value)} className="text-sm font-medium text-slate-600 bg-slate-50 px-2 py-1.5 rounded w-full border border-slate-200 focus:border-indigo-500 outline-none" /></div>
+                                        <div><label className="text-xs text-slate-400 block mb-1">项目等级</label><select value={product.level} onChange={(e) => updateProduct(product.id, 'level', e.target.value)} className={`text-sm font-medium px-2 py-1.5 rounded w-full border outline-none appearance-none cursor-pointer ${product.level === '重点品' ? 'text-orange-600 bg-orange-50 border-orange-200' : 'text-slate-600 bg-slate-50 border-slate-200'}`}><option value="重点品">重点品</option><option value="非重点品">非重点品</option></select></div>
+                                    </div>
+                                    <div className="mt-auto pt-4 border-t border-slate-100 flex items-center gap-2 relative z-20">
+                                        {canEdit && <button type="button" onClick={(e) => handleBackup(e, product.id)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="一键备份当前版本"><Save size={18} /></button>}
+                                        {canEdit && <button type="button" onClick={(e) => { e.stopPropagation(); setHistoryModalProduct(product); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="查看历史版本"><History size={18} /></button>}
+                                        <div className="flex-1"></div>
+                                        {canEdit && <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); softDeleteProduct(product.id); }} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="删除项目"><Trash2 size={18} /></button>}
+                                        <button type="button" onClick={(e) => { e.stopPropagation(); navigateToProduct(product.id); }} className={`px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 rounded flex items-center justify-center gap-2 transition-colors ${!canEdit ? 'pointer-events-auto' : ''}`}>进入排期 <ArrowRight size={14} /></button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {historyModalProduct && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setHistoryModalProduct(null)}>
+                            <div className="bg-white rounded-xl shadow-2xl w-[500px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                                <div className="p-6 border-b flex justify-between items-center"><h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><History className="text-indigo-600"/> 历史版本: {historyModalProduct.name}</h3><button onClick={() => setHistoryModalProduct(null)} className="text-slate-400 hover:text-slate-600"><X /></button></div>
+                                <div className="p-6 overflow-y-auto flex-1">
+                                    {(!historyModalProduct.backups || historyModalProduct.backups.length === 0) ? <div className="text-center py-10 text-slate-400">暂无备份记录</div> : (
+                                        <div className="space-y-3">
+                                            {historyModalProduct.backups.map(backup => (
+                                                <div key={backup.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-200 transition-colors">
+                                                    <div><div className="font-bold text-slate-700">{backup.displayName}</div><div className="text-xs text-slate-400 mt-1">含排期、OGC等全部数据</div></div>
+                                                    <button onClick={() => handleRestore(historyModalProduct.id, backup.data)} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded text-sm font-medium transition-colors">回滚至此版本</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const ProductDetailPage = ({ product, updateProduct, updateProductDeep, customNodes, canEdit }) => {
+            const fileInputRef = useRef(null);
+            const timelineDates = generateLaunchCycleDates(product.launchDate);
+            const [selectedDate, setSelectedDate] = useState(null);
+            const [clickTimeout, setClickTimeout] = useState(null);
+            const [modalType, setModalType] = useState(null);
+            const [editText, setEditText] = useState('');
+
+            const handleDayClick = (e, dateStr) => {
+                if(!canEdit) return;
+                if (clickTimeout) { clearTimeout(clickTimeout); setClickTimeout(null); handleDayDoubleClick(dateStr); } 
+                else { const timeout = setTimeout(() => { setClickTimeout(null); openModal(e, dateStr, 'select'); }, 250); setClickTimeout(timeout); }
+            };
+            const handleDayDoubleClick = (dateStr) => { if(canEdit) openModal(null, dateStr, 'input'); };
+            const openModal = (e, dateStr, type) => {
+                setSelectedDate(dateStr); setModalType(type);
+                if (type === 'input') { const existingText = product.calendarEvents[dateStr]?.find(ev => ev.type === 'text'); setEditText(existingText ? existingText.content : ''); }
+            };
+            const closeModal = () => { setModalType(null); setSelectedDate(null); setEditText(''); };
+            const addEvent = (content, type) => {
+                const currentEvents = product.calendarEvents[selectedDate] || [];
+                let newEvents = [...currentEvents];
+                if (type === 'text') {
+                    const textIndex = newEvents.findIndex(e => e.type === 'text');
+                    if (content.trim() === '') { if(textIndex > -1) newEvents.splice(textIndex, 1); } 
+                    else { if(textIndex > -1) newEvents[textIndex].content = content; else newEvents.push({ type: 'text', content }); }
+                } else { if (!newEvents.some(e => e.content === content && e.type === 'tag')) newEvents.push({ type: 'tag', content }); }
+                updateProductDeep(product.id, ['calendarEvents', selectedDate], newEvents);
+                closeModal();
+            };
+            const removeEvent = (e, dateStr, index) => {
+                e.stopPropagation();
+                const events = [...(product.calendarEvents[dateStr] || [])];
+                events.splice(index, 1);
+                updateProductDeep(product.id, ['calendarEvents', dateStr], events);
+            };
+            const clearSchedule = () => {
+                if(confirm('确定要清空所有排期规划吗？此操作不可撤销（除非有备份）。')) updateProductDeep(product.id, ['calendarEvents'], {});
+            };
+
+            return (
+                <div className="space-y-8 pb-20">
+                    <section className={`bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col md:flex-row gap-8 ${!canEdit ? 'pointer-events-none' : ''}`}>
+                        <div className="w-full md:w-64 h-64 bg-slate-100 rounded-lg flex-shrink-0 relative group overflow-hidden border border-slate-200">
+                           {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-400">暂无图片</div>}
+                           <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRef.current.click()}><span className="text-white font-medium flex items-center gap-2"><Upload size={16} /> 更换图片</span></div>
+                           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => { const file = e.target.files[0]; if(file){ if(file.size>500*1024){alert('图片需小于500KB');return;} const reader = new FileReader(); reader.onloadend = () => updateProduct(product.id, 'image', reader.result); reader.readAsDataURL(file); } }} />
+                        </div>
+                        <div className="flex-1 space-y-6">
+                            <div><label className="text-sm text-slate-500">产品名称 (双击修改)</label><input className="block w-full text-3xl font-bold text-slate-800 border-b-2 border-transparent hover:border-slate-200 focus:border-indigo-500 outline-none bg-transparent py-1" value={product.name} onChange={(e) => updateProduct(product.id, 'name', e.target.value)} /></div>
+                            <div className="grid grid-cols-2 gap-8">
+                                <div><label className="text-sm text-slate-500 mb-1 block">上市时间</label><input type="date" className="block w-full text-lg font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded px-3 py-2 outline-none" value={product.launchDate} onChange={(e) => updateProduct(product.id, 'launchDate', e.target.value)} /></div>
+                                <div><label className="text-sm text-slate-500 mb-1 block">项目级别</label><select className={`block w-full text-lg font-medium border rounded px-3 py-2 outline-none ${product.level === '重点品' ? 'text-orange-600 bg-orange-50 border-orange-200' : 'text-slate-700 bg-slate-50 border-slate-200'}`} value={product.level} onChange={(e) => updateProduct(product.id, 'level', e.target.value)}><option value="重点品">重点品</option><option value="非重点品">非重点品</option></select></div>
+                            </div>
+                        </div>
+                    </section>
+                    <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 ${!canEdit ? 'pointer-events-none' : ''}`}>
+                        <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><div className="w-1 h-5 bg-indigo-500 rounded-full"></div> 基本资料准备</h3>
+                            <div className="space-y-4">
+                                {[{ key: 'prototype', label: '产品样机' }, { key: 'introFile', label: '产品介绍文件' }, { key: 'productImages', label: '产品基础图片' }].map(item => (
+                                    <div key={item.key} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100">
+                                        <span className="text-slate-700">{item.label}</span>
+                                        <button onClick={() => updateProductDeep(product.id, ['basics', item.key], !product.basics[item.key])} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${product.basics[item.key] ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{product.basics[item.key] ? <CheckSquare size={16} /> : <Square size={16} />}{product.basics[item.key] ? '已完成' : '未完成'}</button>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                        <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><div className="w-1 h-5 bg-pink-500 rounded-full"></div> OGC 物料进度</h3>
+                            <div className="space-y-3">
+                                {[{ key: 'detailPage', label: '产品详情页' }, { key: 'sellingPointPoster', label: '卖点海报' }, { key: 'creativePoster', label: '创意海报' }, { key: 'productVideo', label: '产品视频' }, { key: 'creativeVideo', label: '创意视频' }].map(item => (
+                                    <div key={item.key} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded border border-transparent hover:border-slate-100">
+                                        <div className="cursor-pointer text-slate-400 hover:text-indigo-600" onClick={() => updateProductDeep(product.id, ['ogc', item.key, 'done'], !product.ogc[item.key].done)}>{product.ogc[item.key].done ? <CheckSquare className="text-green-500" /> : <Square />}</div>
+                                        <div className="w-24 text-slate-700 font-medium">{item.label}</div>
+                                        <input type="text" placeholder="备注/数量..." className="flex-1 bg-transparent border-b border-slate-200 focus:border-indigo-500 outline-none text-sm py-1 text-slate-600" value={product.ogc[item.key].remark} onChange={(e) => updateProductDeep(product.id, ['ogc', item.key, 'remark'], e.target.value)} />
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    </div>
+
+                    <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-4">
+                                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><div className="w-1 h-5 bg-blue-500 rounded-full"></div> 上市宣传节奏 (T-7 ~ T+35)</h3>
+                                {canEdit && <button onClick={clearSchedule} className="text-xs flex items-center gap-1 text-slate-400 hover:text-red-500 bg-slate-50 hover:bg-red-50 px-2 py-1 rounded border border-slate-200 hover:border-red-200 transition-colors"><Trash2 size={12}/> 清空默认排期</button>}
+                            </div>
+                            <div className="text-xs text-slate-400 flex gap-4"><span>单击: 选择物料</span><span>双击: 自定义文字</span></div>
+                        </div>
+                        <div className="overflow-x-auto pb-4">
+                            <div className="flex gap-2 min-w-max">
+                                {timelineDates.map(dayObj => {
+                                    const events = product.calendarEvents[dayObj.date] || [];
+                                    const isLaunchDay = dayObj.type === 'launch';
+                                    const marketingNode = getMarketingNode(dayObj.date, customNodes);
+                                    const dayOfWeek = new Date(dayObj.date).getDay();
+                                    const weekName = WEEK_NAMES[dayOfWeek];
+                                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                                    
+                                    return (
+                                        <div key={dayObj.date} className={`w-32 flex-shrink-0 border rounded-lg flex flex-col transition-all select-none ${canEdit ? 'cursor-pointer' : ''} ${isLaunchDay ? 'border-red-400 bg-red-50' : 'bg-white border-slate-200'} ${selectedDate === dayObj.date ? 'ring-2 ring-indigo-400' : ''}`} onClick={(e) => handleDayClick(e, dayObj.date)}>
+                                            <div className={`p-2 text-center border-b text-xs font-bold uppercase relative ${isLaunchDay ? 'bg-red-100 text-red-700' : marketingNode ? 'bg-purple-100 text-purple-700' : isWeekend ? 'bg-slate-100 text-slate-400' : 'bg-slate-50 text-slate-600'}`}>
+                                                <div className="flex justify-between px-1"><span>{getDayLabel(dayObj.dayOffset)}</span><span className="opacity-75">{weekName}</span></div>
+                                                <div className="font-normal text-[10px] mt-0.5 opacity-80">{dayObj.date}</div>
+                                                {marketingNode && <div className="absolute top-0 right-0 bg-purple-500 text-white text-[9px] px-1 rounded-bl shadow-sm">{marketingNode}</div>}
+                                            </div>
+                                            <div className="p-2 min-h-[100px] space-y-1.5">{events.map((ev, i) => (<div key={i} className={`text-xs px-2 py-1 rounded border relative group ${ev.type === 'tag' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-amber-50 text-amber-800 border-amber-100 italic'}`}>{ev.content}{canEdit && <button onClick={(e) => removeEvent(e, dayObj.date, i)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-3 h-3 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[8px]">×</button>}</div>))}{events.length === 0 && <div className="h-full flex items-center justify-center text-slate-300 text-[10px]">{canEdit ? "+ 规划" : ""}</div>}</div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </section>
+                    {modalType && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={closeModal}>
+                            <div className="bg-white rounded-lg shadow-xl w-80 p-4 animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4 border-b pb-2"><h4 className="font-bold text-slate-700">{modalType === 'select' ? '选择物料' : '自定义备注'}</h4><div className="text-xs text-slate-400">{selectedDate}</div></div>
+                                {modalType === 'select' ? (<div className="grid grid-cols-2 gap-2">{MATERIAL_OPTIONS.map(opt => (<button key={opt} onClick={() => addEvent(opt, 'tag')} className="text-sm px-3 py-2 bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 rounded border border-slate-200 hover:border-indigo-200 transition">{opt}</button>))}</div>) : (<div><textarea className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-200 outline-none mb-3" rows={3} placeholder="输入自定义内容..." value={editText} onChange={(e) => setEditText(e.target.value)} autoFocus></textarea><div className="flex justify-end gap-2"><button onClick={closeModal} className="px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-100 rounded">取消</button><button onClick={() => addEvent(editText, 'text')} className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700">保存</button></div></div>)}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const MasterCalendarPage = ({ products, navigateToProduct, customNodes, setCustomNodes, canEdit }) => {
+            const [currentDate, setCurrentDate] = useState(new Date());
+            const [showNodeModal, setShowNodeModal] = useState(false);
+            const [newNodeDate, setNewNodeDate] = useState('');
+            const [newNodeName, setNewNodeName] = useState('');
+
+            const getDaysInMonth = (date) => { const year = date.getFullYear(); const month = date.getMonth(); const days = new Date(year, month + 1, 0).getDate(); const firstDay = new Date(year, month, 1).getDay(); return { days, firstDay }; };
+            const { days, firstDay } = getDaysInMonth(currentDate);
+            const monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
+            const changeMonth = (offset) => { const newDate = new Date(currentDate); newDate.setMonth(newDate.getMonth() + offset); setCurrentDate(newDate); };
+            
+            const handleAddNode = () => {
+                if (!newNodeDate || !newNodeName) return alert('请填写日期和名称');
+                setCustomNodes({ ...customNodes, [newNodeDate]: newNodeName });
+                setNewNodeDate(''); setNewNodeName(''); setShowNodeModal(false);
+            };
+
+            const handleDeleteNode = (dateKey) => {
+                const newNodes = { ...customNodes };
+                delete newNodes[dateKey];
+                setCustomNodes(newNodes);
+            };
+
+            const renderCalendarCells = () => {
+                const cells = [];
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+                for (let i = 0; i < firstDay; i++) cells.push(<div key={`empty-${i}`} className="bg-slate-50 border-b border-r min-h-[120px]"></div>);
+                for (let d = 1; d <= days; d++) {
+                    const dateStr = formatDate(new Date(year, month, d));
+                    const isToday = dateStr === formatDate(new Date());
+                    const marketingNode = getMarketingNode(dateStr, customNodes);
+                    const isCustom = customNodes[dateStr]; 
+
+                    const dayEvents = products.map(p => {
+                        const events = p.calendarEvents[dateStr] || [];
+                        const isLaunch = p.launchDate === dateStr;
+                        if (events.length === 0 && !isLaunch) return null;
+                        return { product: p, events, isLaunch, color: getProductColor(p.id) };
+                    }).filter(Boolean);
+                    cells.push(
+                        <div key={d} className={`border-b border-r p-2 min-h-[120px] relative ${isToday ? 'bg-indigo-50/30' : 'bg-white'}`}>
+                            <div className="flex justify-between items-start mb-2">
+                                <span className={`text-sm font-bold ${isToday ? 'bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center' : 'text-slate-700'}`}>{d}</span>
+                                {marketingNode && (
+                                    <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1 ${isCustom ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                                        {marketingNode}
+                                        {isCustom && canEdit && <button onClick={(e)=>{e.stopPropagation(); handleDeleteNode(dateStr)}} className="text-blue-400 hover:text-red-500 ml-1">×</button>}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="space-y-1 overflow-y-auto max-h-[100px] scrollbar-hide">
+                                {dayEvents.map((item, idx) => (
+                                    <div key={idx} className="mb-2 last:mb-0">
+                                        {item.isLaunch && (<div className="bg-red-500 text-white text-[10px] px-1.5 py-1 rounded font-bold mb-1 cursor-pointer truncate shadow-sm flex items-center gap-1" onClick={() => navigateToProduct(item.product.id)}>🚀 [{item.product.name}] 上市</div>)}
+                                        {item.events.map((ev, ei) => (<div key={ei} className={`text-[10px] px-1.5 py-1 rounded border mb-0.5 truncate cursor-pointer flex items-center gap-1 ${item.color.bg} ${item.color.text} ${item.color.border} border`} title={`${item.product.name}: ${ev.content}`} onClick={() => navigateToProduct(item.product.id)}><span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.color.dot}`}></span><span className="font-bold opacity-90">[{item.product.name}]</span><span>{ev.content}</span></div>))}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                }
+                return cells;
+            };
+
+            return (
+                <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden relative">
+                    <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+                        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Calendar className="text-indigo-600" /> 整体全案排期</h2>
+                        <div className="flex items-center gap-4">
+                            {canEdit && <button onClick={() => setShowNodeModal(true)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50 text-sm"><Plus size={14}/> 管理营销节点</button>}
+                            <div className="flex items-center bg-white rounded-md border shadow-sm"><button onClick={() => changeMonth(-1)} className="p-2 hover:bg-slate-100"><ChevronLeft size={20}/></button><div className="w-32 text-center font-bold text-slate-700">{currentDate.getFullYear()}年 {monthNames[currentDate.getMonth()]}</div><button onClick={() => changeMonth(1)} className="p-2 hover:bg-slate-100"><ChevronRight size={20}/></button></div>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-7 bg-slate-100 border-b">{['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map(d => (<div key={d} className="p-3 text-center text-sm font-medium text-slate-500">{d}</div>))}</div>
+                    <div className="grid grid-cols-7">{renderCalendarCells()}</div>
+
+                    {showNodeModal && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowNodeModal(false)}>
+                            <div className="bg-white p-6 rounded-xl shadow-xl w-80" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-lg font-bold mb-4">添加自定义营销节点</h3>
+                                <div className="space-y-4">
+                                    <div><label className="block text-xs text-slate-500 mb-1">日期</label><input type="date" className="w-full border rounded p-2 text-sm" value={newNodeDate} onChange={e => setNewNodeDate(e.target.value)} /></div>
+                                    <div><label className="block text-xs text-slate-500 mb-1">节点名称</label><input type="text" className="w-full border rounded p-2 text-sm" placeholder="例如：公司周年庆" value={newNodeName} onChange={e => setNewNodeName(e.target.value)} /></div>
+                                    <button onClick={handleAddNode} className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">添加</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

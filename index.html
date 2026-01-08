@@ -210,7 +210,6 @@
 
         // --- 主组件 ---
         const App = () => {
-            // settings 现在包含 logs 和 visitors
             const [appData, setAppData] = useState({ products: [], customNodes: {}, settings: { visitors: [], logs: [] } });
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
@@ -218,22 +217,16 @@
             const [view, setView] = useState('home'); 
             const [activeProductId, setActiveProductId] = useState(null);
             const [showRecycleBin, setShowRecycleBin] = useState(false);
-            
-            // --- 权限管理状态 ---
-            const [role, setRole] = useState('guest'); // 'guest' | 'user' | 'admin'
-            const [currentUser, setCurrentUser] = useState(null); // 当前登录用户名
+            const [role, setRole] = useState('guest'); 
+            const [currentUser, setCurrentUser] = useState(null); 
             const [showLoginModal, setShowLoginModal] = useState(false);
             const [showAdminPanel, setShowAdminPanel] = useState(false);
             const [inputPwd, setInputPwd] = useState('');
-            
-            // Admin Panel State
-            const [adminTab, setAdminTab] = useState('visitors'); // 'visitors' | 'logs'
+            const [adminTab, setAdminTab] = useState('visitors'); 
             const [newVisitorName, setNewVisitorName] = useState('');
             const [newVisitorPwd, setNewVisitorPwd] = useState('');
-
             const timeoutRef = useRef(null);
 
-            // 初始化：从云端拉取数据
             useEffect(() => {
                 if (window.dbConfigured === false) { setError('CONFIG_MISSING'); setLoading(false); return; }
                 if (window.dbError) { setError('INIT_FAILED'); setLoading(false); return; }
@@ -296,11 +289,9 @@
                 }, 1000); 
             };
 
-            // 核心状态更新包装器：支持自动写入日志
             const handleSetAppData = (newDataOrFn, logActionType = null, logDetail = null) => {
                 setAppData(prev => {
                     let newData = typeof newDataOrFn === 'function' ? newDataOrFn(prev) : newDataOrFn;
-                    
                     if (logActionType && currentUser) {
                         const newLog = {
                             id: Date.now(),
@@ -313,7 +304,6 @@
                         const updatedLogs = [newLog, ...(newData.settings.logs || [])].slice(0, 200);
                         newData = { ...newData, settings: { ...newData.settings, logs: updatedLogs } };
                     }
-
                     saveToCloud(newData);
                     return newData;
                 });
@@ -333,7 +323,6 @@
                 }, '修改营销节点', '更新了全局日历节点');
             };
 
-            // --- 登录逻辑 ---
             const handleLogin = () => {
                 if (inputPwd === ADMIN_PASSWORD) {
                     setRole('admin');
@@ -344,7 +333,6 @@
                 } else {
                     const visitors = appData.settings.visitors || [];
                     const matchedVisitor = visitors.find(v => v.password === inputPwd);
-                    
                     if (matchedVisitor) {
                         setRole('user');
                         setCurrentUser(matchedVisitor.name);
@@ -358,7 +346,6 @@
                 }
             };
 
-            // --- 管理员面板逻辑 ---
             const handleAddVisitor = () => {
                 if (!newVisitorName || !newVisitorPwd) return alert("请填写名称和密码");
                 handleSetAppData(prev => ({
@@ -382,7 +369,6 @@
                 }));
             };
 
-            // --- 业务逻辑 ---
             const updateProduct = (id, field, value) => {
                 const productName = appData.products.find(p => p.id === id)?.name || '未知产品';
                 setProducts(prev => {
@@ -418,7 +404,6 @@
             };
 
             const softDeleteProduct = (id) => { 
-                const p = appData.products.find(i=>i.id===id);
                 if(window.confirm('确定要移除这个项目吗？它将被移入回收站。')) updateProduct(id, 'deleted', true);
             };
             const restoreProduct = (id) => updateProduct(id, 'deleted', false);
@@ -431,7 +416,6 @@
             const activeProductsList = appData.products.filter(p => !p.deleted);
             const deletedProductsList = appData.products.filter(p => p.deleted);
 
-            // --- 界面渲染 ---
             if (loading) return <div className="h-screen flex flex-col items-center justify-center space-y-4"><div className="loader"></div><p className="text-slate-500 text-sm">正在加载数据...</p></div>;
             if (error === 'NETWORK_ERROR') return <div className="h-screen flex flex-col items-center justify-center text-red-500"><AlertTriangle size={48} className="mb-4"/><p>连接失败，请检查配置。</p><button onClick={()=>window.location.reload()} className="mt-4 px-4 py-2 bg-slate-100 rounded text-slate-700 text-sm">重试</button></div>;
 
@@ -694,31 +678,66 @@
                         {canEdit && <button onClick={addNewProduct} className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition shadow-sm font-medium">+ 新增产品项目</button>}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {products.map((product, index) => (
-                            <div key={product.id} className={`group bg-white rounded-xl shadow-sm border-2 transition-all hover:shadow-lg relative overflow-hidden flex flex-col ${canEdit ? 'draggable-item' : ''} ${product.level === '重点品' ? 'border-orange-200' : 'border-transparent'}`}
-                                draggable={canEdit} onDragStart={(e) => handleDragStart(e, index)} onDragEnter={(e) => handleDragEnter(e, index)} onDragEnd={handleDragEnd} onDragOver={(e) => e.preventDefault()}>
-                                {canEdit && <div className="absolute top-2 left-2 z-20 text-white/50 group-hover:text-white cursor-grab p-1 bg-black/20 rounded backdrop-blur-sm" title="长按拖动调整顺序"><GripVertical size={16} /></div>}
-                                {product.level === '重点品' && <div className="absolute top-0 right-0 bg-orange-100 text-orange-600 px-3 py-1 rounded-bl-lg text-xs font-bold z-10 flex items-center gap-1"><Star className="w-3 h-3 fill-current" /> 重点</div>}
-                                <div className={`h-48 bg-slate-100 relative transition-colors flex items-center justify-center overflow-hidden ${!canEdit ? 'pointer-events-none' : ''}`}>
-                                    {product.image ? <img src={product.image} alt={product.name} className="w-full h-full object-cover pointer-events-none" /> : <div className="text-slate-400 flex flex-col items-center"><div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mb-2"><span className="text-2xl font-bold text-slate-300">{product.name.charAt(0)}</span></div><span className="text-xs">点击下方按钮上传封面</span></div>}
-                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRefs.current[product.id]?.click()}><div className="text-white flex flex-col items-center"><Upload className="w-6 h-6 mb-1" /><span className="text-xs">更换图片</span></div><input type="file" ref={el => fileInputRefs.current[product.id] = el} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(product.id, e)} /></div>
-                                </div>
-                                <div className={`p-5 flex-1 flex flex-col ${!canEdit ? 'pointer-events-none' : ''}`}>
-                                    <div className="mb-4"><label className="text-xs text-slate-400 block mb-1">产品名称</label><input type="text" value={product.name} onChange={(e) => updateProduct(product.id, 'name', e.target.value)} className="w-full text-lg font-bold text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none bg-transparent" /></div>
-                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                        <div><label className="text-xs text-slate-400 block mb-1">上市时间</label><input type="date" value={product.launchDate} onChange={(e) => updateProduct(product.id, 'launchDate', e.target.value)} className="text-sm font-medium text-slate-600 bg-slate-50 px-2 py-1.5 rounded w-full border border-slate-200 focus:border-indigo-500 outline-none" /></div>
-                                        <div><label className="text-xs text-slate-400 block mb-1">项目等级</label><select value={product.level} onChange={(e) => updateProduct(product.id, 'level', e.target.value)} className={`text-sm font-medium px-2 py-1.5 rounded w-full border outline-none appearance-none cursor-pointer ${product.level === '重点品' ? 'text-orange-600 bg-orange-50 border-orange-200' : 'text-slate-600 bg-slate-50 border-slate-200'}`}><option value="重点品">重点品</option><option value="非重点品">非重点品</option></select></div>
+                        {products.map((product, index) => {
+                            // Calculate Basics
+                            const basicsTotal = product.basics ? Object.keys(product.basics).length : 0;
+                            const basicsDone = product.basics ? Object.values(product.basics).filter(v => v).length : 0;
+                            const basicsPercent = basicsTotal > 0 ? (basicsDone / basicsTotal) * 100 : 0;
+
+                            // Calculate OGC
+                            const ogcTotal = product.ogc ? Object.keys(product.ogc).length : 0;
+                            const ogcDone = product.ogc ? Object.values(product.ogc).filter(v => v.done).length : 0;
+                            const ogcPercent = ogcTotal > 0 ? (ogcDone / ogcTotal) * 100 : 0;
+
+                            return (
+                                <div key={product.id} className={`group bg-white rounded-xl shadow-sm border-2 transition-all hover:shadow-lg relative overflow-hidden flex flex-col ${canEdit ? 'draggable-item' : ''} ${product.level === '重点品' ? 'border-orange-200' : 'border-transparent'}`}
+                                    draggable={canEdit} onDragStart={(e) => handleDragStart(e, index)} onDragEnter={(e) => handleDragEnter(e, index)} onDragEnd={handleDragEnd} onDragOver={(e) => e.preventDefault()}>
+                                    {canEdit && <div className="absolute top-2 left-2 z-20 text-white/50 group-hover:text-white cursor-grab p-1 bg-black/20 rounded backdrop-blur-sm" title="长按拖动调整顺序"><GripVertical size={16} /></div>}
+                                    {product.level === '重点品' && <div className="absolute top-0 right-0 bg-orange-100 text-orange-600 px-3 py-1 rounded-bl-lg text-xs font-bold z-10 flex items-center gap-1"><Star className="w-3 h-3 fill-current" /> 重点</div>}
+                                    <div className={`h-48 bg-slate-100 relative transition-colors flex items-center justify-center overflow-hidden ${!canEdit ? 'pointer-events-none' : ''}`}>
+                                        {product.image ? <img src={product.image} alt={product.name} className="w-full h-full object-cover pointer-events-none" /> : <div className="text-slate-400 flex flex-col items-center"><div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mb-2"><span className="text-2xl font-bold text-slate-300">{product.name.charAt(0)}</span></div><span className="text-xs">点击下方按钮上传封面</span></div>}
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRefs.current[product.id]?.click()}><div className="text-white flex flex-col items-center"><Upload className="w-6 h-6 mb-1" /><span className="text-xs">更换图片</span></div><input type="file" ref={el => fileInputRefs.current[product.id] = el} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(product.id, e)} /></div>
                                     </div>
-                                    <div className="mt-auto pt-4 border-t border-slate-100 flex items-center gap-2 relative z-20">
-                                        {canEdit && <button type="button" onClick={(e) => handleBackup(e, product.id)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="一键备份当前版本"><Save size={18} /></button>}
-                                        {canEdit && <button type="button" onClick={(e) => { e.stopPropagation(); setHistoryModalProduct(product); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="查看历史版本"><History size={18} /></button>}
-                                        <div className="flex-1"></div>
-                                        {canEdit && <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); softDeleteProduct(product.id); }} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="删除项目"><Trash2 size={18} /></button>}
-                                        <button type="button" onClick={(e) => { e.stopPropagation(); navigateToProduct(product.id); }} className={`px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 rounded flex items-center justify-center gap-2 transition-colors ${!canEdit ? 'pointer-events-auto' : ''}`}>进入排期 <ArrowRight size={14} /></button>
+                                    <div className={`p-5 flex-1 flex flex-col ${!canEdit ? 'pointer-events-none' : ''}`}>
+                                        <div className="mb-4">
+                                            <label className="text-xs text-slate-400 block mb-1">产品名称</label>
+                                            <input type="text" value={product.name} onChange={(e) => updateProduct(product.id, 'name', e.target.value)} className="w-full text-lg font-bold text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none bg-transparent" />
+                                            
+                                            {/* Progress Visualization */}
+                                            <div className="mt-3 space-y-2">
+                                                {/* Basic Materials */}
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <span className="text-slate-400 w-8">资料</span>
+                                                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div className={`h-full rounded-full transition-all duration-500 ${basicsPercent === 100 ? 'bg-green-500' : 'bg-amber-400'}`} style={{width: `${basicsPercent}%`}}></div>
+                                                    </div>
+                                                    <span className={`w-6 text-right ${basicsPercent === 100 ? 'text-green-600' : 'text-amber-600'}`}>{basicsDone}/{basicsTotal}</span>
+                                                </div>
+                                                {/* OGC Materials */}
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <span className="text-slate-400 w-8">物料</span>
+                                                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div className={`h-full rounded-full transition-all duration-500 ${ogcPercent === 100 ? 'bg-green-500' : 'bg-blue-400'}`} style={{width: `${ogcPercent}%`}}></div>
+                                                    </div>
+                                                    <span className={`w-6 text-right ${ogcPercent === 100 ? 'text-green-600' : 'text-blue-600'}`}>{ogcDone}/{ogcTotal}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4 mb-4">
+                                            <div><label className="text-xs text-slate-400 block mb-1">上市时间</label><input type="date" value={product.launchDate} onChange={(e) => updateProduct(product.id, 'launchDate', e.target.value)} className="text-sm font-medium text-slate-600 bg-slate-50 px-2 py-1.5 rounded w-full border border-slate-200 focus:border-indigo-500 outline-none" /></div>
+                                            <div><label className="text-xs text-slate-400 block mb-1">项目等级</label><select value={product.level} onChange={(e) => updateProduct(product.id, 'level', e.target.value)} className={`text-sm font-medium px-2 py-1.5 rounded w-full border outline-none appearance-none cursor-pointer ${product.level === '重点品' ? 'text-orange-600 bg-orange-50 border-orange-200' : 'text-slate-600 bg-slate-50 border-slate-200'}`}><option value="重点品">重点品</option><option value="非重点品">非重点品</option></select></div>
+                                        </div>
+                                        <div className="mt-auto pt-4 border-t border-slate-100 flex items-center gap-2 relative z-20">
+                                            {canEdit && <button type="button" onClick={(e) => handleBackup(e, product.id)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="一键备份当前版本"><Save size={18} /></button>}
+                                            {canEdit && <button type="button" onClick={(e) => { e.stopPropagation(); setHistoryModalProduct(product); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="查看历史版本"><History size={18} /></button>}
+                                            <div className="flex-1"></div>
+                                            {canEdit && <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); softDeleteProduct(product.id); }} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="删除项目"><Trash2 size={18} /></button>}
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); navigateToProduct(product.id); }} className={`px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 rounded flex items-center justify-center gap-2 transition-colors ${!canEdit ? 'pointer-events-auto' : ''}`}>进入排期 <ArrowRight size={14} /></button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
 
                     {historyModalProduct && (

@@ -18,7 +18,7 @@
     <!-- 引入 Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <!-- 🔥 新增：引入 Lunar 农历库 🔥 -->
+    <!-- 🔥 引入 Lunar 农历库 🔥 -->
     <script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.6.12/lunar.js"></script>
 
     <script>
@@ -88,9 +88,9 @@
         const Lock = (props) => <IconBase {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>;
         const Unlock = (props) => <IconBase {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></IconBase>;
         const Users = (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>;
+        const Clock = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></IconBase>;
 
         // --- 常量 ---
-        // 移除了硬编码的农历/节气节点，改用 Lunar 库实时计算
         const DEFAULT_MARKETING_NODES = {
             '01-01': '元旦', '02-14': '情人节', '03-08': '妇女节', '03-12': '植树节',
             '04-01': '愚人节', '05-01': '劳动节', '05-04': '青年节', '05-20': '520大促',
@@ -106,7 +106,8 @@
             '18': ['KOL二创'], '24': ['好评海报']
         };
 
-        const MATERIAL_OPTIONS = ['卖点海报', '创意海报', '产品视频', '创意视频', 'KOL种草', 'KOL二创', 'PR稿件', '倒计时海报', '好评海报'];
+        // 🔥 更新：新增“一图看懂” 🔥
+        const MATERIAL_OPTIONS = ['卖点海报', '创意海报', '产品视频', '创意视频', 'KOL种草', 'KOL二创', 'PR稿件', '倒计时海报', '好评海报', '一图看懂'];
         const WEEK_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
         const ADMIN_PASSWORD = "258992"; 
 
@@ -127,7 +128,7 @@
             return formatDate(date);
         };
 
-        // 🔥 获取日期详情（包含农历、节气、营销节点） 🔥
+        // 获取日期详情（包含农历、节气、营销节点）
         const getDateInfo = (dateStr, customNodes = {}) => {
             if(!dateStr) return { label: null, isHighlight: false };
             const parts = dateStr.split('-');
@@ -140,21 +141,17 @@
             const key = `${parts[1]}-${parts[2]}`;
             if (DEFAULT_MARKETING_NODES[key]) return { label: DEFAULT_MARKETING_NODES[key], isHighlight: true, type: 'public' };
 
-            // 3. 计算农历和节气 (使用 lunar.js)
+            // 3. 计算农历和节气
             try {
                 const date = new Date(dateStr);
                 const lunar = Lunar.fromDate(date);
                 
-                // 农历节日 (如春节、腊八)
                 const festivals = lunar.getFestivals();
                 if (festivals.length > 0) return { label: festivals[0], isHighlight: true, type: 'lunar_festival' };
                 
-                // 节气 (如立春、小寒)
                 const jieQi = lunar.getJieQi();
                 if (jieQi) return { label: jieQi, isHighlight: true, type: 'jieqi' };
 
-                // 普通农历日期 (如初一、十五)
-                // 简化显示：初一显示月份，其他显示日期
                 const dayName = lunar.getDayInChinese();
                 const monthName = lunar.getMonthInChinese() + '月';
                 return { 
@@ -247,7 +244,8 @@
 
         // --- 主组件 ---
         const App = () => {
-            const [appData, setAppData] = useState({ products: [], customNodes: {}, settings: { visitors: [], logs: [] } });
+            // settings 包含 visitors, logs, 和 customInputHistory
+            const [appData, setAppData] = useState({ products: [], customNodes: {}, settings: { visitors: [], logs: [], customInputHistory: [] } });
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
             const [syncStatus, setSyncStatus] = useState('syncing'); 
@@ -285,6 +283,9 @@
                         let content = data.content;
                         if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: { visitors: [], logs: [] } };
                         if (!content.settings) content.settings = { visitors: [], logs: [] };
+                        if (!content.settings.customInputHistory) content.settings.customInputHistory = []; // 初始化历史记录
+                        
+                        // 兼容旧密码逻辑
                         if (content.settings.userPassword) {
                             if (!content.settings.visitors) content.settings.visitors = [];
                             if (content.settings.visitors.length === 0) {
@@ -297,7 +298,7 @@
 
                         setAppData(content);
                     } else {
-                        setAppData({ products: [], customNodes: {}, settings: { visitors: [], logs: [] } });
+                        setAppData({ products: [], customNodes: {}, settings: { visitors: [], logs: [], customInputHistory: [] } });
                     }
                     setLoading(false); setSyncStatus('saved');
 
@@ -307,6 +308,7 @@
                             if (payload.new && payload.new.content) {
                                 let content = payload.new.content;
                                 if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: { visitors: [], logs: [] } };
+                                if (!content.settings.customInputHistory) content.settings.customInputHistory = [];
                                 setAppData(content);
                             }
                         })
@@ -363,6 +365,22 @@
                     const newNodes = typeof newNodesOrFn === 'function' ? newNodesOrFn(prev.customNodes) : newNodesOrFn;
                     return { ...prev, customNodes: newNodes };
                 }, '修改营销节点', '更新了全局日历节点');
+            };
+
+            // 🔥 新增：添加自定义输入历史 🔥
+            const addCustomInputHistory = (input) => {
+                handleSetAppData(prev => {
+                    const currentHistory = prev.settings.customInputHistory || [];
+                    // 去重并将新输入放到最前，限制最多10个
+                    const newHistory = [input, ...currentHistory.filter(i => i !== input)].slice(0, 10);
+                    return {
+                        ...prev,
+                        settings: {
+                            ...prev.settings,
+                            customInputHistory: newHistory
+                        }
+                    };
+                });
             };
 
             const handleLogin = () => {
@@ -545,6 +563,8 @@
                                 setCustomNodes={setCustomNodes}
                                 canEdit={canEdit}
                                 updateProductDeep={updateProductDeep}
+                                customInputHistory={appData.settings.customInputHistory || []}
+                                addCustomInputHistory={addCustomInputHistory}
                             />
                         )}
                     </main>
@@ -750,7 +770,6 @@
                                             
                                             {/* Progress Visualization */}
                                             <div className="mt-3 space-y-2">
-                                                {/* Basic Materials */}
                                                 <div className="flex items-center gap-2 text-xs">
                                                     <span className="text-slate-400 w-8">资料</span>
                                                     <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -758,7 +777,6 @@
                                                     </div>
                                                     <span className={`w-6 text-right ${basicsPercent === 100 ? 'text-green-600' : 'text-amber-600'}`}>{basicsDone}/{basicsTotal}</span>
                                                 </div>
-                                                {/* OGC Materials */}
                                                 <div className="flex items-center gap-2 text-xs">
                                                     <span className="text-slate-400 w-8">物料</span>
                                                     <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -766,6 +784,18 @@
                                                     </div>
                                                     <span className={`w-6 text-right ${ogcPercent === 100 ? 'text-green-600' : 'text-blue-600'}`}>{ogcDone}/{ogcTotal}</span>
                                                 </div>
+                                            </div>
+
+                                            {/* 🔥 新增：备注功能 🔥 */}
+                                            <div className="mt-4">
+                                                <label className="text-[10px] text-slate-400 block mb-1">备注信息</label>
+                                                <textarea 
+                                                    className="w-full text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2 focus:ring-1 focus:ring-indigo-200 outline-none resize-none h-16"
+                                                    placeholder="暂无备注..."
+                                                    value={product.remark || ''}
+                                                    onChange={(e) => updateProduct(product.id, 'remark', e.target.value)}
+                                                    onClick={(e) => e.stopPropagation()} 
+                                                />
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4 mb-4">
@@ -946,7 +976,7 @@
             );
         };
 
-        const MasterCalendarPage = ({ products, navigateToProduct, customNodes, setCustomNodes, canEdit, updateProductDeep }) => {
+        const MasterCalendarPage = ({ products, navigateToProduct, customNodes, setCustomNodes, canEdit, updateProductDeep, customInputHistory, addCustomInputHistory }) => {
             const [currentDate, setCurrentDate] = useState(new Date());
             const [showNodeModal, setShowNodeModal] = useState(false);
             const [newNodeDate, setNewNodeDate] = useState('');
@@ -999,6 +1029,11 @@
             const handleSaveEvent = () => {
                 if (!targetProductId || !targetContent) return;
                 
+                // 🔥 如果是自定义内容，保存到历史记录 🔥
+                if (isCustomContent) {
+                    addCustomInputHistory(targetContent);
+                }
+
                 // Find existing events for this product on this day to append
                 const product = products.find(p => p.id == targetProductId);
                 if (!product) return;
@@ -1011,7 +1046,6 @@
                 }
                 
                 setShowAddEventModal(false);
-                // Reset optional fields but keep date/product for convenience? No, reset for clean state
                 setTargetContent(MATERIAL_OPTIONS[0]);
             };
 
@@ -1152,14 +1186,33 @@
                                         </div>
                                         
                                         {isCustomContent ? (
-                                            <input 
-                                                type="text" 
-                                                className="w-full border rounded p-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
-                                                placeholder="输入自定义内容..."
-                                                value={targetContent}
-                                                onChange={(e) => setTargetContent(e.target.value)}
-                                                autoFocus
-                                            />
+                                            <div>
+                                                <input 
+                                                    type="text" 
+                                                    className="w-full border rounded p-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                                                    placeholder="输入自定义内容..."
+                                                    value={targetContent}
+                                                    onChange={(e) => setTargetContent(e.target.value)}
+                                                    autoFocus
+                                                />
+                                                {/* 🔥 显示历史记录 🔥 */}
+                                                {customInputHistory && customInputHistory.length > 0 && (
+                                                    <div className="mt-2">
+                                                        <div className="text-[10px] text-slate-400 mb-1">最近使用:</div>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {customInputHistory.map((item, idx) => (
+                                                                <button 
+                                                                    key={idx}
+                                                                    onClick={() => setTargetContent(item)}
+                                                                    className="text-[10px] bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 px-2 py-1 rounded border border-transparent hover:border-indigo-100 transition-colors"
+                                                                >
+                                                                    {item}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         ) : (
                                             <select 
                                                 className="w-full border rounded p-2 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-200"

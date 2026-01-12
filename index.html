@@ -18,12 +18,12 @@
     <!-- 引入 Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <!-- 🔥 引入 Lunar 农历库 🔥 -->
+    <!-- 引入 Lunar 农历库 -->
     <script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.6.12/lunar.js"></script>
 
     <script>
         // ==========================================================================================
-        // 🔥🔥🔥 Supabase 配置已自动填入 🔥🔥🔥
+        // 🔥🔥🔥 Supabase 配置 🔥🔥🔥
         // ==========================================================================================
         const supabaseUrl = "https://rbyvnkitojzfpkygrqkf.supabase.co"; 
         const supabaseKey = "sb_publishable_FtRFRTIPl8Ep6D7JW8GYcg_qFm4iobs";
@@ -46,13 +46,10 @@
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         .loader { border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #6366f1; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        /* 拖拽相关样式 */
         .draggable-item { cursor: grab; }
         .draggable-item:active { cursor: grabbing; }
         .drag-over { border-color: #6366f1 !important; transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-        /* 禁用状态样式 */
         .disabled-area { pointer-events: none; opacity: 0.7; }
-        /* 农历字体 */
         .lunar-text { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
     </style>
 </head>
@@ -62,7 +59,7 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // --- 图标组件 ---
+        // --- 1. 图标组件 (Icons) ---
         const IconBase = ({ children, ...props }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>{children}</svg>);
         const CalendarIcon = (props) => <IconBase {...props}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></IconBase>;
         const ChevronLeft = (props) => <IconBase {...props}><path d="m15 18-6-6 6-6"/></IconBase>;
@@ -88,9 +85,10 @@
         const Lock = (props) => <IconBase {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>;
         const Unlock = (props) => <IconBase {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></IconBase>;
         const Users = (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>;
-        const Clock = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></IconBase>;
+        const ListIcon = (props) => <IconBase {...props}><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></IconBase>;
+        const PlusCircle = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></IconBase>;
 
-        // --- 常量 ---
+        // --- 2. 常量配置 (Constants) ---
         const DEFAULT_MARKETING_NODES = {
             '01-01': '元旦', '02-14': '情人节', '03-08': '妇女节', '03-12': '植树节',
             '04-01': '愚人节', '05-01': '劳动节', '05-04': '青年节', '05-20': '520大促',
@@ -106,12 +104,39 @@
             '18': ['KOL二创'], '24': ['好评海报']
         };
 
-        // 🔥 更新：新增“一图看懂” 🔥
+        const DEFAULT_OGC_ITEMS = {
+            sellingPointPoster: { label: '卖点海报', done: false, remark: '' },
+            creativePoster: { label: '创意海报', done: false, remark: '' },
+            productVideo: { label: '产品视频', done: false, remark: '' },
+            creativeVideo: { label: '创意视频', done: false, remark: '' },
+            onePicture: { label: '一图看懂', done: false, remark: '' } // 新增
+        };
+
+        const OGC_KEY_MAP = {
+            'sellingPointPoster': '卖点海报',
+            'creativePoster': '创意海报',
+            'productVideo': '产品视频',
+            'creativeVideo': '创意视频',
+            'onePicture': '一图看懂',
+            'detailPage': '产品详情页'
+        };
+
         const MATERIAL_OPTIONS = ['卖点海报', '创意海报', '产品视频', '创意视频', 'KOL种草', 'KOL二创', 'PR稿件', '倒计时海报', '好评海报', '一图看懂'];
         const WEEK_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-        const ADMIN_PASSWORD = "258992"; 
+        const ADMIN_PASSWORD = "258992";
+        
+        const PRODUCT_COLORS = [
+            { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200', dot: 'bg-blue-500' },
+            { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+            { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200', dot: 'bg-purple-500' },
+            { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-200', dot: 'bg-amber-500' },
+            { bg: 'bg-rose-100', text: 'text-rose-800', border: 'border-rose-200', dot: 'bg-rose-500' },
+            { bg: 'bg-cyan-100', text: 'text-cyan-800', border: 'border-cyan-200', dot: 'bg-cyan-500' },
+        ];
 
-        // --- 工具函数 ---
+        const getProductColor = (id) => PRODUCT_COLORS[id % PRODUCT_COLORS.length] || PRODUCT_COLORS[0];
+
+        // --- 3. 工具函数 ---
         const formatDate = (date) => {
             if (!date) return '';
             const d = new Date(date);
@@ -128,40 +153,26 @@
             return formatDate(date);
         };
 
-        // 获取日期详情（包含农历、节气、营销节点）
         const getDateInfo = (dateStr, customNodes = {}) => {
             if(!dateStr) return { label: null, isHighlight: false };
             const parts = dateStr.split('-');
             if(parts.length !== 3) return { label: null, isHighlight: false };
             
-            // 1. 优先检查自定义节点
             if (customNodes[dateStr]) return { label: customNodes[dateStr], isHighlight: true, type: 'custom' };
-
-            // 2. 检查公历固定节点
             const key = `${parts[1]}-${parts[2]}`;
             if (DEFAULT_MARKETING_NODES[key]) return { label: DEFAULT_MARKETING_NODES[key], isHighlight: true, type: 'public' };
 
-            // 3. 计算农历和节气
             try {
                 const date = new Date(dateStr);
                 const lunar = Lunar.fromDate(date);
-                
                 const festivals = lunar.getFestivals();
                 if (festivals.length > 0) return { label: festivals[0], isHighlight: true, type: 'lunar_festival' };
-                
                 const jieQi = lunar.getJieQi();
                 if (jieQi) return { label: jieQi, isHighlight: true, type: 'jieqi' };
-
                 const dayName = lunar.getDayInChinese();
                 const monthName = lunar.getMonthInChinese() + '月';
-                return { 
-                    label: dayName === '初一' ? monthName : dayName, 
-                    isHighlight: false, 
-                    type: 'lunar_normal' 
-                };
-
+                return { label: dayName === '初一' ? monthName : dayName, isHighlight: false, type: 'lunar_normal' };
             } catch(e) {
-                console.warn("Lunar calc error", e);
                 return { label: null, isHighlight: false };
             }
         };
@@ -231,441 +242,14 @@
             return `T+${offset}`;
         };
 
-        const PRODUCT_COLORS = [
-            { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200', dot: 'bg-blue-500' },
-            { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-200', dot: 'bg-emerald-500' },
-            { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200', dot: 'bg-purple-500' },
-            { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-200', dot: 'bg-amber-500' },
-            { bg: 'bg-rose-100', text: 'text-rose-800', border: 'border-rose-200', dot: 'bg-rose-500' },
-            { bg: 'bg-cyan-100', text: 'text-cyan-800', border: 'border-cyan-200', dot: 'bg-cyan-500' },
-        ];
+        // --- 4. 子组件定义 (必须在 App 之前) ---
 
-        const getProductColor = (id) => PRODUCT_COLORS[id % PRODUCT_COLORS.length] || PRODUCT_COLORS[0];
-
-        // --- 主组件 ---
-        const App = () => {
-            // settings 包含 visitors, logs, 和 customInputHistory
-            const [appData, setAppData] = useState({ products: [], customNodes: {}, settings: { visitors: [], logs: [], customInputHistory: [] } });
-            const [loading, setLoading] = useState(true);
-            const [error, setError] = useState(null);
-            const [syncStatus, setSyncStatus] = useState('syncing'); 
-            const [view, setView] = useState('home'); 
-            const [activeProductId, setActiveProductId] = useState(null);
-            const [showRecycleBin, setShowRecycleBin] = useState(false);
-            
-            // --- 权限管理状态 ---
-            const [role, setRole] = useState('guest'); 
-            const [currentUser, setCurrentUser] = useState(null); 
-            const [showLoginModal, setShowLoginModal] = useState(false);
-            const [showAdminPanel, setShowAdminPanel] = useState(false);
-            const [inputPwd, setInputPwd] = useState('');
-            
-            // Admin Panel State
-            const [adminTab, setAdminTab] = useState('visitors'); 
-            const [newVisitorName, setNewVisitorName] = useState('');
-            const [newVisitorPwd, setNewVisitorPwd] = useState('');
-
-            const timeoutRef = useRef(null);
-
-            useEffect(() => {
-                if (window.dbConfigured === false) { setError('CONFIG_MISSING'); setLoading(false); return; }
-                if (window.dbError) { setError('INIT_FAILED'); setLoading(false); return; }
-                initRealtimeSync();
-            }, []);
-
-            const initRealtimeSync = async () => {
-                if (!supabaseClient) return;
-                try {
-                    const { data, error } = await supabaseClient.from('projects').select('content').eq('id', 'main').single();
-                    if (error && error.code !== 'PGRST116') throw error;
-
-                    if (data && data.content) {
-                        let content = data.content;
-                        if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: { visitors: [], logs: [] } };
-                        if (!content.settings) content.settings = { visitors: [], logs: [] };
-                        if (!content.settings.customInputHistory) content.settings.customInputHistory = []; // 初始化历史记录
-                        
-                        // 兼容旧密码逻辑
-                        if (content.settings.userPassword) {
-                            if (!content.settings.visitors) content.settings.visitors = [];
-                            if (content.settings.visitors.length === 0) {
-                                content.settings.visitors.push({ id: Date.now(), name: "默认访客", password: content.settings.userPassword });
-                            }
-                            delete content.settings.userPassword;
-                        }
-                        if (!content.settings.logs) content.settings.logs = [];
-                        if (!content.settings.visitors) content.settings.visitors = [];
-
-                        setAppData(content);
-                    } else {
-                        setAppData({ products: [], customNodes: {}, settings: { visitors: [], logs: [], customInputHistory: [] } });
-                    }
-                    setLoading(false); setSyncStatus('saved');
-
-                    const channel = supabaseClient
-                        .channel('public:projects')
-                        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects', filter: 'id=eq.main' }, (payload) => {
-                            if (payload.new && payload.new.content) {
-                                let content = payload.new.content;
-                                if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: { visitors: [], logs: [] } };
-                                if (!content.settings.customInputHistory) content.settings.customInputHistory = [];
-                                setAppData(content);
-                            }
-                        })
-                        .subscribe();
-                    return () => { supabaseClient.removeChannel(channel); };
-                } catch (err) {
-                    console.error("Sync error:", err);
-                    setError('NETWORK_ERROR'); setLoading(false); setSyncStatus('error');
-                }
-            };
-
-            const saveToCloud = (newData) => {
-                if (!supabaseClient) return;
-                setSyncStatus('syncing');
-                if (timeoutRef.current) clearTimeout(timeoutRef.current);
-                timeoutRef.current = setTimeout(async () => {
-                    try {
-                        const { error } = await supabaseClient.from('projects').upsert({ id: 'main', content: newData });
-                        if (error) throw error;
-                        setSyncStatus('saved');
-                    } catch (e) { console.error("Save error:", e); setSyncStatus('error'); }
-                }, 1000); 
-            };
-
-            const handleSetAppData = (newDataOrFn, logActionType = null, logDetail = null) => {
-                setAppData(prev => {
-                    let newData = typeof newDataOrFn === 'function' ? newDataOrFn(prev) : newDataOrFn;
-                    if (logActionType && currentUser) {
-                        const newLog = {
-                            id: Date.now(),
-                            timestamp: new Date().toISOString(),
-                            user: currentUser,
-                            role: role,
-                            action: logActionType,
-                            detail: logDetail || ''
-                        };
-                        const updatedLogs = [newLog, ...(newData.settings.logs || [])].slice(0, 200);
-                        newData = { ...newData, settings: { ...newData.settings, logs: updatedLogs } };
-                    }
-                    saveToCloud(newData);
-                    return newData;
-                });
-            };
-
-            const setProducts = (newProductsOrFn, actionType, actionDetail) => {
-                handleSetAppData(prev => {
-                    const newProducts = typeof newProductsOrFn === 'function' ? newProductsOrFn(prev.products) : newProductsOrFn;
-                    return { ...prev, products: newProducts };
-                }, actionType, actionDetail);
-            };
-
-            const setCustomNodes = (newNodesOrFn) => {
-                handleSetAppData(prev => {
-                    const newNodes = typeof newNodesOrFn === 'function' ? newNodesOrFn(prev.customNodes) : newNodesOrFn;
-                    return { ...prev, customNodes: newNodes };
-                }, '修改营销节点', '更新了全局日历节点');
-            };
-
-            // 🔥 新增：添加自定义输入历史 🔥
-            const addCustomInputHistory = (input) => {
-                handleSetAppData(prev => {
-                    const currentHistory = prev.settings.customInputHistory || [];
-                    // 去重并将新输入放到最前，限制最多10个
-                    const newHistory = [input, ...currentHistory.filter(i => i !== input)].slice(0, 10);
-                    return {
-                        ...prev,
-                        settings: {
-                            ...prev.settings,
-                            customInputHistory: newHistory
-                        }
-                    };
-                });
-            };
-
-            const handleLogin = () => {
-                if (inputPwd === ADMIN_PASSWORD) {
-                    setRole('admin');
-                    setCurrentUser('管理员');
-                    setShowLoginModal(false);
-                    setInputPwd('');
-                    alert("管理员登录成功！");
-                } else {
-                    const visitors = appData.settings.visitors || [];
-                    const matchedVisitor = visitors.find(v => v.password === inputPwd);
-                    if (matchedVisitor) {
-                        setRole('user');
-                        setCurrentUser(matchedVisitor.name);
-                        setShowLoginModal(false);
-                        setInputPwd('');
-                        handleSetAppData(d => d, '访客登录', `访客 [${matchedVisitor.name}] 访问了系统`);
-                        alert(`欢迎，${matchedVisitor.name}！编辑权限已解锁。`);
-                    } else {
-                        alert("密码错误，请重试。");
-                    }
-                }
-            };
-
-            const handleAddVisitor = () => {
-                if (!newVisitorName || !newVisitorPwd) return alert("请填写名称和密码");
-                handleSetAppData(prev => ({
-                    ...prev,
-                    settings: {
-                        ...prev.settings,
-                        visitors: [...(prev.settings.visitors || []), { id: Date.now(), name: newVisitorName, password: newVisitorPwd }]
-                    }
-                }));
-                setNewVisitorName(''); setNewVisitorPwd('');
-            };
-
-            const handleDeleteVisitor = (id) => {
-                if(!confirm("确定删除该访客吗？")) return;
-                handleSetAppData(prev => ({
-                    ...prev,
-                    settings: {
-                        ...prev.settings,
-                        visitors: prev.settings.visitors.filter(v => v.id !== id)
-                    }
-                }));
-            };
-
-            const updateProduct = (id, field, value) => {
-                const productName = appData.products.find(p => p.id === id)?.name || '未知产品';
-                setProducts(prev => {
-                    let updated = prev.map(p => {
-                        if (p.id !== id) return p;
-                        if (field === 'launchDate' && value !== p.launchDate) {
-                            const confirmRegen = window.confirm("检测到上市时间已修改。\n\n是否重新生成默认规划？");
-                            if (confirmRegen) return { ...p, [field]: value, calendarEvents: generateDefaultEvents(value, appData.customNodes) };
-                        }
-                        return { ...p, [field]: value };
-                    });
-                    if (field === 'level') {
-                        const targetIndex = updated.findIndex(p => p.id === id);
-                        if (targetIndex > -1) {
-                            const item = updated[targetIndex];
-                            if (value === '重点品') { updated.splice(targetIndex, 1); updated.unshift(item); }
-                        }
-                    }
-                    return updated;
-                }, '修改产品信息', `修改了 [${productName}] 的 ${field}`);
-            };
-
-            const updateProductDeep = (id, pathArray, value) => {
-                const productName = appData.products.find(p => p.id === id)?.name || '未知产品';
-                setProducts(prev => prev.map(p => {
-                    if (p.id !== id) return p;
-                    const newP = { ...p };
-                    let current = newP;
-                    for (let i = 0; i < pathArray.length - 1; i++) { current[pathArray[i]] = { ...current[pathArray[i]] }; current = current[pathArray[i]]; }
-                    current[pathArray[pathArray.length - 1]] = value;
-                    return newP;
-                }), '更新详细规划', `更新了 [${productName}] 的排期或物料状态`);
-            };
-
-            const softDeleteProduct = (id) => { 
-                if(window.confirm('确定要移除这个项目吗？它将被移入回收站。')) updateProduct(id, 'deleted', true);
-            };
-            const restoreProduct = (id) => updateProduct(id, 'deleted', false);
-            const hardDeleteProduct = (id) => { 
-                if(window.confirm('警告：此操作不可撤销！')) setProducts(prev => prev.filter(p => p.id !== id), '永久删除', `彻底删除了产品ID: ${id}`); 
-            };
-            const navigateToProduct = (id) => { setActiveProductId(id); setView('product-detail'); };
-
-            const activeProduct = appData.products.find(p => p.id === activeProductId);
-            const activeProductsList = appData.products.filter(p => !p.deleted);
-            const deletedProductsList = appData.products.filter(p => p.deleted);
-
-            if (loading) return <div className="h-screen flex flex-col items-center justify-center space-y-4"><div className="loader"></div><p className="text-slate-500 text-sm">正在加载数据...</p></div>;
-            if (error === 'NETWORK_ERROR') return <div className="h-screen flex flex-col items-center justify-center text-red-500"><AlertTriangle size={48} className="mb-4"/><p>连接失败，请检查配置。</p><button onClick={()=>window.location.reload()} className="mt-4 px-4 py-2 bg-slate-100 rounded text-slate-700 text-sm">重试</button></div>;
-
-            const canEdit = role !== 'guest';
-            const isAdmin = role === 'admin';
-
-            return (
-                <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-10">
-                    <header className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-40 shadow-sm flex justify-between items-center">
-                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView('home')}>
-                            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                                <LayoutGrid className="text-white w-5 h-5" />
-                            </div>
-                            <h1 className="text-xl font-bold text-slate-800">产品上市全案项目管理 <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded ml-2 border border-green-200">Supabase</span></h1>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 text-xs mr-4">
-                                {syncStatus === 'syncing' && <span className="text-amber-600 flex items-center gap-1"><span className="loader" style={{width:12, height:12, borderWidth:2}}></span> 同步中...</span>}
-                                {syncStatus === 'saved' && <span className="text-green-600 flex items-center gap-1"><Cloud size={14}/> 已同步</span>}
-                                {syncStatus === 'error' && <span className="text-red-600 flex items-center gap-1"><CloudOff size={14}/> 同步失败</span>}
-                            </div>
-                            
-                            {role === 'guest' ? (
-                                <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-2 px-3 py-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 text-sm font-bold border border-slate-300">
-                                    <Lock size={14} /> 解锁编辑
-                                </button>
-                            ) : (
-                                <div className="flex items-center gap-2">
-                                    {isAdmin && (
-                                        <button onClick={() => setShowAdminPanel(true)} className="flex items-center gap-1 px-3 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md text-sm transition-colors font-medium">
-                                            <Users size={14} /> 用户与日志
-                                        </button>
-                                    )}
-                                    <div className="flex items-center gap-1 px-3 py-2 bg-green-50 text-green-700 rounded-md text-sm border border-green-200">
-                                        <Unlock size={14} /> {currentUser}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="h-6 w-px bg-slate-200 mx-2"></div>
-
-                            {view === 'home' && (
-                                <>
-                                    <button onClick={() => setView('master')} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors font-medium text-sm"><CalendarIcon className="w-4 h-4" /> 整体排期</button>
-                                    {canEdit && (
-                                        <button onClick={() => setShowRecycleBin(true)} className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors text-sm relative">
-                                            <Trash2 className="w-4 h-4" /> 回收站
-                                            {deletedProductsList.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>}
-                                        </button>
-                                    )}
-                                </>
-                            )}
-                            {view !== 'home' && <button onClick={() => setView('home')} className="flex items-center gap-2 text-slate-500 hover:text-slate-800"><ArrowLeft className="w-4 h-4" /> 返回首页</button>}
-                        </div>
-                    </header>
-
-                    <main className="p-6 max-w-7xl mx-auto">
-                        {view === 'home' && (
-                            <HomePage 
-                                products={activeProductsList} 
-                                setProducts={setProducts} 
-                                fullProductList={appData.products} 
-                                navigateToProduct={navigateToProduct} 
-                                updateProduct={updateProduct}
-                                softDeleteProduct={softDeleteProduct}
-                                customNodes={appData.customNodes}
-                                canEdit={canEdit}
-                                currentUser={currentUser}
-                            />
-                        )}
-                        {view === 'product-detail' && activeProduct && (
-                            <ProductDetailPage 
-                                product={activeProduct} 
-                                updateProduct={updateProduct}
-                                updateProductDeep={updateProductDeep}
-                                customNodes={appData.customNodes}
-                                canEdit={canEdit}
-                            />
-                        )}
-                        {view === 'master' && (
-                            <MasterCalendarPage 
-                                products={activeProductsList} 
-                                navigateToProduct={navigateToProduct} 
-                                customNodes={appData.customNodes}
-                                setCustomNodes={setCustomNodes}
-                                canEdit={canEdit}
-                                updateProductDeep={updateProductDeep}
-                                customInputHistory={appData.settings.customInputHistory || []}
-                                addCustomInputHistory={addCustomInputHistory}
-                            />
-                        )}
-                    </main>
-
-                    {/* 登录弹窗 */}
-                    {showLoginModal && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowLoginModal(false)}>
-                            <div className="bg-white p-6 rounded-xl shadow-2xl w-80" onClick={e => e.stopPropagation()}>
-                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Lock size={18}/> 权限验证</h3>
-                                <p className="text-xs text-slate-500 mb-4">请输入管理员密码或访客密码以解锁编辑。</p>
-                                <input type="password" autoFocus className="w-full border p-2 rounded mb-4" placeholder="在此输入密码..." value={inputPwd} onChange={e => setInputPwd(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()} />
-                                <button onClick={handleLogin} className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">解锁</button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 管理员面板 */}
-                    {showAdminPanel && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowAdminPanel(false)}>
-                            <div className="bg-white rounded-xl shadow-2xl w-[700px] h-[500px] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                                <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
-                                    <div className="flex gap-4">
-                                        <button onClick={() => setAdminTab('visitors')} className={`pb-2 text-sm font-bold border-b-2 ${adminTab === 'visitors' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}>访客管理</button>
-                                        <button onClick={() => setAdminTab('logs')} className={`pb-2 text-sm font-bold border-b-2 ${adminTab === 'logs' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}>操作日志</button>
-                                    </div>
-                                    <button onClick={() => setShowAdminPanel(false)} className="text-slate-400 hover:text-slate-600"><X size={18}/></button>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-6">
-                                    {adminTab === 'visitors' ? (
-                                        <div className="space-y-6">
-                                            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
-                                                <h4 className="text-sm font-bold text-indigo-800 mb-2">添加新访客</h4>
-                                                <div className="flex gap-3">
-                                                    <input className="flex-1 border rounded px-2 py-1 text-sm" placeholder="访客名称 (如: Agency A)" value={newVisitorName} onChange={e => setNewVisitorName(e.target.value)} />
-                                                    <input className="flex-1 border rounded px-2 py-1 text-sm" placeholder="设置密码" value={newVisitorPwd} onChange={e => setNewVisitorPwd(e.target.value)} />
-                                                    <button onClick={handleAddVisitor} className="bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700">添加</button>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <h4 className="text-sm font-bold text-slate-700 mb-3">现有访客列表</h4>
-                                                <div className="space-y-2">
-                                                    {(appData.settings.visitors || []).length === 0 && <div className="text-slate-400 text-sm text-center py-4">暂无访客，请添加</div>}
-                                                    {(appData.settings.visitors || []).map(v => (
-                                                        <div key={v.id} className="flex justify-between items-center p-3 bg-white border rounded shadow-sm">
-                                                            <div className="flex gap-4">
-                                                                <span className="font-bold text-slate-700 w-32 truncate">{v.name}</span>
-                                                                <span className="font-mono text-slate-500 bg-slate-100 px-2 rounded text-xs py-0.5">PWD: {v.password}</span>
-                                                            </div>
-                                                            <button onClick={() => handleDeleteVisitor(v.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded"><Trash2 size={14}/></button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-4">
-                                            {(appData.settings.logs || []).length === 0 && <div className="text-center py-10 text-slate-400">暂无日志记录</div>}
-                                            {(appData.settings.logs || []).map(log => (
-                                                <div key={log.id} className="text-sm border-b pb-2 last:border-0">
-                                                    <div className="flex justify-between mb-1">
-                                                        <span className="font-bold text-slate-700">{log.user} <span className="text-xs font-normal text-slate-400 ml-1">({new Date(log.timestamp).toLocaleString()})</span></span>
-                                                        <span className={`text-xs px-2 py-0.5 rounded ${log.action === '访客登录' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{log.action}</span>
-                                                    </div>
-                                                    <div className="text-slate-500 pl-2 border-l-2 border-slate-200">{log.detail}</div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {showRecycleBin && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowRecycleBin(false)}>
-                            <div className="bg-white rounded-xl shadow-2xl w-[600px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                                <div className="p-6 border-b flex justify-between items-center"><h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><Trash2 className="text-slate-400" /> 回收站</h3><button onClick={() => setShowRecycleBin(false)} className="text-slate-400 hover:text-slate-600"><X /></button></div>
-                                <div className="p-6 overflow-y-auto flex-1">
-                                    {deletedProductsList.length === 0 ? <div className="text-center py-10 text-slate-400"><Trash2 className="w-12 h-12 mx-auto mb-3 opacity-20" /><p>回收站是空的</p></div> : (
-                                        <div className="space-y-3">
-                                            {deletedProductsList.map(p => (
-                                                <div key={p.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
-                                                    <div><div className="font-bold text-slate-700">{p.name}</div><div className="text-xs text-slate-400 mt-1">原定上市: {p.launchDate}</div></div>
-                                                    <div className="flex gap-2"><button onClick={() => restoreProduct(p.id)} className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded text-sm transition-colors"><RefreshCcw size={14} /> 恢复</button><button onClick={() => hardDeleteProduct(p.id)} className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded text-sm transition-colors"><X size={14} /> 彻底删除</button></div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
-        };
-
-        const HomePage = ({ products, setProducts, fullProductList, navigateToProduct, updateProduct, softDeleteProduct, customNodes, canEdit, currentUser }) => {
+        const HomePage = ({ products, setProducts, fullProductList, navigateToProduct, updateProduct, updateProductDeep, softDeleteProduct, customNodes, canEdit, currentUser }) => {
             const fileInputRefs = useRef({});
             const dragItem = useRef();
             const dragOverItem = useRef();
             const [historyModalProduct, setHistoryModalProduct] = useState(null);
+            const [homeViewMode, setHomeViewMode] = useState('grid'); 
 
             const handleDragStart = (e, position) => { if(!canEdit) return; dragItem.current = position; e.target.classList.add('opacity-50'); };
             const handleDragEnter = (e, position) => { if(!canEdit) return; dragOverItem.current = position; };
@@ -700,10 +284,11 @@
                 const newId = fullProductList.length > 0 ? Math.max(...fullProductList.map(p => p.id)) + 1 : 1;
                 const launchDate = formatDate(new Date());
                 const defaultEvents = generateDefaultEvents(launchDate, customNodes);
+                // 默认 Basic 包含 detailPage
                 const newProduct = {
                     id: newId, name: "新产品 (已自动规划)", level: "非重点品", deleted: false, launchDate: launchDate, image: null,
-                    basics: { prototype: false, introFile: false, productImages: false },
-                    ogc: { detailPage: { done: false, remark: '设计中' }, sellingPointPoster: { done: false, remark: '' }, creativePoster: { done: false, remark: '' }, productVideo: { done: false, remark: '' }, creativeVideo: { done: false, remark: '' } },
+                    basics: { prototype: false, introFile: false, productImages: false, detailPage: false },
+                    ogc: JSON.parse(JSON.stringify(DEFAULT_OGC_ITEMS)),
                     calendarEvents: defaultEvents,
                     backups: []
                 };
@@ -740,80 +325,142 @@
                 <div>
                     <div className="flex justify-between items-end mb-6">
                         <div><h2 className="text-2xl font-bold text-slate-800">产品看板</h2><p className="text-slate-500 text-sm mt-1">{canEdit ? "支持拖拽排序 | 重点品自动置顶" : "当前为只读模式"}</p></div>
-                        {canEdit && <button onClick={addNewProduct} className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition shadow-sm font-medium">+ 新增产品项目</button>}
+                        <div className="flex gap-2">
+                            <div className="bg-white border rounded-md p-1 flex">
+                                <button onClick={() => setHomeViewMode('grid')} className={`p-1.5 rounded ${homeViewMode === 'grid' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:bg-slate-50'}`}><LayoutGrid size={16} /></button>
+                                <button onClick={() => setHomeViewMode('list')} className={`p-1.5 rounded ${homeViewMode === 'list' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:bg-slate-50'}`}><ListIcon size={16} /></button>
+                            </div>
+                            {canEdit && <button onClick={addNewProduct} className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition shadow-sm font-medium">+ 新增产品项目</button>}
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {products.map((product, index) => {
-                            // Calculate Basics
-                            const basicsTotal = product.basics ? Object.keys(product.basics).length : 0;
-                            const basicsDone = product.basics ? Object.values(product.basics).filter(v => v).length : 0;
-                            const basicsPercent = basicsTotal > 0 ? (basicsDone / basicsTotal) * 100 : 0;
 
-                            // Calculate OGC
-                            const ogcTotal = product.ogc ? Object.keys(product.ogc).length : 0;
-                            const ogcDone = product.ogc ? Object.values(product.ogc).filter(v => v.done).length : 0;
-                            const ogcPercent = ogcTotal > 0 ? (ogcDone / ogcTotal) * 100 : 0;
+                    {homeViewMode === 'grid' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {products.map((product, index) => {
+                                const basicsTotal = product.basics ? Object.keys(product.basics).length : 0;
+                                const basicsDone = product.basics ? Object.values(product.basics).filter(v => v).length : 0;
+                                const basicsPercent = basicsTotal > 0 ? (basicsDone / basicsTotal) * 100 : 0;
+                                
+                                const ogcKeys = product.ogc ? Object.keys(product.ogc).filter(k => k !== 'detailPage') : [];
+                                const ogcTotal = ogcKeys.length;
+                                const ogcDone = ogcKeys.filter(k => product.ogc[k].done).length;
+                                const ogcPercent = ogcTotal > 0 ? (ogcDone / ogcTotal) * 100 : 0;
 
-                            return (
-                                <div key={product.id} className={`group bg-white rounded-xl shadow-sm border-2 transition-all hover:shadow-lg relative overflow-hidden flex flex-col ${canEdit ? 'draggable-item' : ''} ${product.level === '重点品' ? 'border-orange-200' : 'border-transparent'}`}
-                                    draggable={canEdit} onDragStart={(e) => handleDragStart(e, index)} onDragEnter={(e) => handleDragEnter(e, index)} onDragEnd={handleDragEnd} onDragOver={(e) => e.preventDefault()}>
-                                    {canEdit && <div className="absolute top-2 left-2 z-20 text-white/50 group-hover:text-white cursor-grab p-1 bg-black/20 rounded backdrop-blur-sm" title="长按拖动调整顺序"><GripVertical size={16} /></div>}
-                                    {product.level === '重点品' && <div className="absolute top-0 right-0 bg-orange-100 text-orange-600 px-3 py-1 rounded-bl-lg text-xs font-bold z-10 flex items-center gap-1"><Star className="w-3 h-3 fill-current" /> 重点</div>}
-                                    <div className={`h-48 bg-slate-100 relative transition-colors flex items-center justify-center overflow-hidden ${!canEdit ? 'pointer-events-none' : ''}`}>
-                                        {product.image ? <img src={product.image} alt={product.name} className="w-full h-full object-cover pointer-events-none" /> : <div className="text-slate-400 flex flex-col items-center"><div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mb-2"><span className="text-2xl font-bold text-slate-300">{product.name.charAt(0)}</span></div><span className="text-xs">点击下方按钮上传封面</span></div>}
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRefs.current[product.id]?.click()}><div className="text-white flex flex-col items-center"><Upload className="w-6 h-6 mb-1" /><span className="text-xs">更换图片</span></div><input type="file" ref={el => fileInputRefs.current[product.id] = el} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(product.id, e)} /></div>
-                                    </div>
-                                    <div className={`p-5 flex-1 flex flex-col ${!canEdit ? 'pointer-events-none' : ''}`}>
-                                        <div className="mb-4">
-                                            <label className="text-xs text-slate-400 block mb-1">产品名称</label>
-                                            <input type="text" value={product.name} onChange={(e) => updateProduct(product.id, 'name', e.target.value)} className="w-full text-lg font-bold text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none bg-transparent" />
-                                            
-                                            {/* Progress Visualization */}
-                                            <div className="mt-3 space-y-2">
-                                                <div className="flex items-center gap-2 text-xs">
-                                                    <span className="text-slate-400 w-8">资料</span>
-                                                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div className={`h-full rounded-full transition-all duration-500 ${basicsPercent === 100 ? 'bg-green-500' : 'bg-amber-400'}`} style={{width: `${basicsPercent}%`}}></div>
-                                                    </div>
-                                                    <span className={`w-6 text-right ${basicsPercent === 100 ? 'text-green-600' : 'text-amber-600'}`}>{basicsDone}/{basicsTotal}</span>
+                                return (
+                                    <div key={product.id} className={`group bg-white rounded-xl shadow-sm border-2 transition-all hover:shadow-lg relative overflow-hidden flex flex-row h-64 draggable-item ${product.level === '重点品' ? 'border-orange-200' : 'border-transparent'}`}
+                                        draggable={canEdit} onDragStart={(e) => handleDragStart(e, index)} onDragEnter={(e) => handleDragEnter(e, index)} onDragEnd={handleDragEnd} onDragOver={(e) => e.preventDefault()}>
+                                        
+                                        {/* 左侧正方形图片 - 固定大小 h-64 w-64 */}
+                                        <div className="w-64 h-full flex-shrink-0 relative bg-slate-100 flex items-center justify-center overflow-hidden border-r border-slate-100">
+                                            {canEdit && <div className="absolute top-2 left-2 z-20 text-white/50 group-hover:text-white cursor-grab p-1 bg-black/20 rounded backdrop-blur-sm" title="长按拖动调整顺序"><GripVertical size={16} /></div>}
+                                            {product.level === '重点品' && <div className="absolute top-0 right-0 bg-orange-100 text-orange-600 px-3 py-1 rounded-bl-lg text-xs font-bold z-10 flex items-center gap-1"><Star className="w-3 h-3 fill-current" /> 重点</div>}
+                                            {product.image ? <img src={product.image} alt={product.name} className="w-full h-full object-cover pointer-events-none" /> : <div className="text-slate-400 flex flex-col items-center"><div className="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center mb-2"><span className="text-2xl font-bold text-slate-300">{product.name.charAt(0)}</span></div><span className="text-[10px]">点击上传</span></div>}
+                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRefs.current[product.id]?.click()}><div className="text-white flex flex-col items-center"><Upload className="w-6 h-6 mb-1" /><span className="text-xs">更换图片</span></div><input type="file" ref={el => fileInputRefs.current[product.id] = el} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(product.id, e)} /></div>
+                                        </div>
+
+                                        {/* 右侧详情栏 */}
+                                        <div className={`flex-1 p-4 flex flex-col justify-between ${!canEdit ? 'pointer-events-none' : ''}`}>
+                                            <div>
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <input type="text" value={product.name} onChange={(e) => updateProduct(product.id, 'name', e.target.value)} className="text-lg font-bold text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none bg-transparent w-full mr-2" />
                                                 </div>
-                                                <div className="flex items-center gap-2 text-xs">
-                                                    <span className="text-slate-400 w-8">物料</span>
-                                                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div className={`h-full rounded-full transition-all duration-500 ${ogcPercent === 100 ? 'bg-green-500' : 'bg-blue-400'}`} style={{width: `${ogcPercent}%`}}></div>
-                                                    </div>
-                                                    <span className={`w-6 text-right ${ogcPercent === 100 ? 'text-green-600' : 'text-blue-600'}`}>{ogcDone}/{ogcTotal}</span>
+                                                
+                                                <div className="grid grid-cols-2 gap-3 mb-2">
+                                                    <div><label className="text-[10px] text-slate-400 block">上市时间</label><input type="date" value={product.launchDate} onChange={(e) => updateProduct(product.id, 'launchDate', e.target.value)} className="text-xs font-medium text-slate-600 bg-transparent border-b border-transparent hover:border-slate-200 focus:border-indigo-500 outline-none w-full" /></div>
+                                                    <div><label className="text-[10px] text-slate-400 block">等级</label><select value={product.level} onChange={(e) => updateProduct(product.id, 'level', e.target.value)} className={`text-xs font-medium bg-transparent border-none outline-none cursor-pointer ${product.level === '重点品' ? 'text-orange-600' : 'text-slate-600'}`}><option value="重点品">重点品</option><option value="非重点品">非重点品</option></select></div>
                                                 </div>
+
+                                                <div className="flex gap-4 text-[10px] mb-2">
+                                                    <div className="flex-1">
+                                                        <div className="flex justify-between mb-0.5"><span className="text-slate-400">资料</span><span className={basicsPercent===100?'text-green-600':'text-amber-600'}>{basicsDone}/{basicsTotal}</span></div>
+                                                        <div className="h-1 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full ${basicsPercent===100?'bg-green-500':'bg-amber-400'}`} style={{width: `${basicsPercent}%`}}></div></div>
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex justify-between mb-0.5"><span className="text-slate-400">物料</span><span className={ogcPercent===100?'text-green-600':'text-blue-600'}>{ogcDone}/{ogcTotal}</span></div>
+                                                        <div className="h-1 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full ${ogcPercent===100?'bg-green-500':'bg-blue-400'}`} style={{width: `${ogcPercent}%`}}></div></div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <input type="text" className="w-full text-xs text-slate-500 bg-slate-50 border border-transparent hover:border-slate-200 rounded px-2 py-1 outline-none truncate" placeholder="添加备注..." value={product.remark || ''} onChange={(e) => updateProduct(product.id, 'remark', e.target.value)} onClick={(e) => e.stopPropagation()} />
                                             </div>
 
-                                            {/* 🔥 新增：备注功能 🔥 */}
-                                            <div className="mt-4">
-                                                <label className="text-[10px] text-slate-400 block mb-1">备注信息</label>
-                                                <textarea 
-                                                    className="w-full text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2 focus:ring-1 focus:ring-indigo-200 outline-none resize-none h-16"
-                                                    placeholder="暂无备注..."
-                                                    value={product.remark || ''}
-                                                    onChange={(e) => updateProduct(product.id, 'remark', e.target.value)}
-                                                    onClick={(e) => e.stopPropagation()} 
-                                                />
+                                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-50">
+                                                {canEdit && <button onClick={(e) => handleBackup(e, product.id)} className="text-slate-400 hover:text-indigo-600 p-1" title="备份"><Save size={14}/></button>}
+                                                {canEdit && <button onClick={(e) => { e.stopPropagation(); setHistoryModalProduct(product); }} className="text-slate-400 hover:text-indigo-600 p-1" title="历史"><History size={14}/></button>}
+                                                {canEdit && <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); softDeleteProduct(product.id); }} className="text-slate-400 hover:text-red-500 p-1" title="删除"><Trash2 size={14}/></button>}
+                                                <button onClick={(e) => { e.stopPropagation(); navigateToProduct(product.id); }} className={`ml-2 px-3 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-bold rounded flex items-center gap-1 transition-colors ${!canEdit ? 'pointer-events-auto' : ''}`}>详情 <ArrowRight size={10} /></button>
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4 mb-4">
-                                            <div><label className="text-xs text-slate-400 block mb-1">上市时间</label><input type="date" value={product.launchDate} onChange={(e) => updateProduct(product.id, 'launchDate', e.target.value)} className="text-sm font-medium text-slate-600 bg-slate-50 px-2 py-1.5 rounded w-full border border-slate-200 focus:border-indigo-500 outline-none" /></div>
-                                            <div><label className="text-xs text-slate-400 block mb-1">项目等级</label><select value={product.level} onChange={(e) => updateProduct(product.id, 'level', e.target.value)} className={`text-sm font-medium px-2 py-1.5 rounded w-full border outline-none appearance-none cursor-pointer ${product.level === '重点品' ? 'text-orange-600 bg-orange-50 border-orange-200' : 'text-slate-600 bg-slate-50 border-slate-200'}`}><option value="重点品">重点品</option><option value="非重点品">非重点品</option></select></div>
-                                        </div>
-                                        <div className="mt-auto pt-4 border-t border-slate-100 flex items-center gap-2 relative z-20">
-                                            {canEdit && <button type="button" onClick={(e) => handleBackup(e, product.id)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="一键备份当前版本"><Save size={18} /></button>}
-                                            {canEdit && <button type="button" onClick={(e) => { e.stopPropagation(); setHistoryModalProduct(product); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="查看历史版本"><History size={18} /></button>}
-                                            <div className="flex-1"></div>
-                                            {canEdit && <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); softDeleteProduct(product.id); }} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="删除项目"><Trash2 size={18} /></button>}
-                                            <button type="button" onClick={(e) => { e.stopPropagation(); navigateToProduct(product.id); }} className={`px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 rounded flex items-center justify-center gap-2 transition-colors ${!canEdit ? 'pointer-events-auto' : ''}`}>进入排期 <ArrowRight size={14} /></button>
-                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div className="grid grid-cols-[200px_100px_80px_120px_120px_200px_1fr_100px] bg-slate-50 border-b text-xs font-bold text-slate-500 p-3">
+                                <div>产品名称</div><div>上市日期</div><div>等级</div><div>样机情况</div><div>介绍文件</div><div>物料情况</div><div>备注</div><div className="text-right">操作</div>
+                            </div>
+                            <div className="divide-y divide-slate-100">
+                                {products.map((product, index) => {
+                                    // 智能修复中文显示：如果旧数据是英文key，尝试映射
+                                    const doneMaterials = Object.entries(product.ogc || {})
+                                        .filter(([key, val]) => val.done && key !== 'detailPage')
+                                        .map(([key, val]) => val.label || OGC_KEY_MAP[key] || key); 
+                                    const materialSummary = doneMaterials.length > 0 ? doneMaterials.join(', ') : '暂无';
+
+                                    return (
+                                        <div 
+                                            key={product.id} 
+                                            className={`grid grid-cols-[200px_100px_80px_120px_120px_200px_1fr_100px] items-center p-3 text-sm hover:bg-slate-50 transition-colors
+                                                ${canEdit ? 'draggable-item' : ''} ${product.level === '重点品' ? 'bg-orange-50/30' : ''}
+                                            `}
+                                            draggable={canEdit}
+                                            onDragStart={(e) => handleDragStart(e, index)} 
+                                            onDragEnter={(e) => handleDragEnter(e, index)} 
+                                            onDragEnd={handleDragEnd} 
+                                            onDragOver={(e) => e.preventDefault()}
+                                        >
+                                            <div className="font-bold text-slate-800 flex items-center gap-2 pr-4">
+                                                {canEdit && <GripVertical size={14} className="text-slate-300 cursor-grab flex-shrink-0" />}
+                                                <span className="truncate" title={product.name}>{product.name}</span>
+                                                {product.level === '重点品' && <Star size={12} className="text-orange-500 fill-current flex-shrink-0" />}
+                                            </div>
+                                            <div>
+                                                <input type="date" value={product.launchDate} onChange={(e) => updateProduct(product.id, 'launchDate', e.target.value)} className="bg-transparent border-b border-transparent hover:border-slate-300 outline-none text-slate-600 w-full text-xs" disabled={!canEdit}/>
+                                            </div>
+                                            <div>
+                                                <select value={product.level} onChange={(e) => updateProduct(product.id, 'level', e.target.value)} className="bg-transparent text-xs outline-none cursor-pointer" disabled={!canEdit}>
+                                                    <option value="重点品">重点品</option>
+                                                    <option value="非重点品">非重点品</option>
+                                                </select>
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <button onClick={() => canEdit && updateProductDeep(products.findIndex(p=>p.id===product.id), ['basics', 'prototype'], !product.basics.prototype)} className={`flex items-center gap-1 text-xs ${product.basics.prototype ? 'text-green-600' : 'text-slate-400'}`}>
+                                                    {product.basics.prototype ? <CheckSquare size={14}/> : <Square size={14}/>} 样机
+                                                </button>
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <button onClick={() => canEdit && updateProductDeep(products.findIndex(p=>p.id===product.id), ['basics', 'introFile'], !product.basics.introFile)} className={`flex items-center gap-1 text-xs ${product.basics.introFile ? 'text-green-600' : 'text-slate-400'}`}>
+                                                    {product.basics.introFile ? <CheckSquare size={14}/> : <Square size={14}/>} PPT
+                                                </button>
+                                            </div>
+                                            <div className="text-xs text-slate-500 truncate pr-4" title={materialSummary}>
+                                                {doneMaterials.length > 0 ? <span className="text-green-600">已完成: {materialSummary}</span> : <span className="text-slate-400">待开始</span>}
+                                            </div>
+                                            <div className="pr-4">
+                                                <input type="text" className="w-full bg-transparent border-b border-transparent hover:border-slate-300 outline-none text-xs text-slate-600" placeholder="备注..." value={product.remark || ''} onChange={(e) => updateProduct(product.id, 'remark', e.target.value)} disabled={!canEdit} />
+                                            </div>
+                                            <div className="flex justify-end gap-2">
+                                                {canEdit && <button onClick={(e) => handleBackup(e, product.id)} className="text-slate-400 hover:text-indigo-600" title="备份"><Save size={14}/></button>}
+                                                {canEdit && <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); softDeleteProduct(product.id); }} className="text-slate-400 hover:text-red-600" title="删除"><Trash2 size={14}/></button>}
+                                                <button onClick={(e) => { e.stopPropagation(); navigateToProduct(product.id); }} className="text-indigo-600 hover:text-indigo-800 font-bold text-xs">详情 &gt;</button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     {historyModalProduct && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setHistoryModalProduct(null)}>
@@ -824,13 +471,7 @@
                                         <div className="space-y-3">
                                             {historyModalProduct.backups.map(backup => (
                                                 <div key={backup.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-200 transition-colors">
-                                                    <div>
-                                                        <div className="font-bold text-slate-700">
-                                                            {backup.displayName} 
-                                                            {backup.user && <span className="ml-2 text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded">by {backup.user}</span>}
-                                                        </div>
-                                                        <div className="text-xs text-slate-400 mt-1">含排期、OGC等全部数据</div>
-                                                    </div>
+                                                    <div><div className="font-bold text-slate-700">{backup.displayName} {backup.user && <span className="ml-2 text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded">by {backup.user}</span>}</div><div className="text-xs text-slate-400 mt-1">含排期、OGC等全部数据</div></div>
                                                     <button onClick={() => handleRestore(historyModalProduct.id, backup.data)} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded text-sm font-medium transition-colors">回滚至此版本</button>
                                                 </div>
                                             ))}
@@ -884,6 +525,22 @@
                 if(confirm('确定要清空所有排期规划吗？此操作不可撤销（除非有备份）。')) updateProductDeep(product.id, ['calendarEvents'], {});
             };
 
+            const addCustomOGCItem = () => {
+                const name = prompt("请输入新物料项名称：");
+                if (name) {
+                    const key = 'custom_' + Date.now();
+                    updateProductDeep(product.id, ['ogc', key], { label: name, done: false, remark: '' });
+                }
+            }
+
+            const deleteOGCItem = (key) => {
+                if(confirm('确定删除此物料项吗？')) {
+                     const newOgc = { ...product.ogc };
+                     delete newOgc[key];
+                     updateProduct(product.id, 'ogc', newOgc);
+                }
+            }
+
             return (
                 <div className="space-y-8 pb-20">
                     <section className={`bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col md:flex-row gap-8 ${!canEdit ? 'pointer-events-none' : ''}`}>
@@ -904,7 +561,8 @@
                         <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><div className="w-1 h-5 bg-indigo-500 rounded-full"></div> 基本资料准备</h3>
                             <div className="space-y-4">
-                                {[{ key: 'prototype', label: '产品样机' }, { key: 'introFile', label: '产品介绍文件' }, { key: 'productImages', label: '产品基础图片' }].map(item => (
+                                {/* 将 detailPage 添加到基本资料中 */}
+                                {[{ key: 'prototype', label: '产品样机' }, { key: 'introFile', label: '产品介绍文件' }, { key: 'productImages', label: '产品基础图片' }, { key: 'detailPage', label: '产品详情页' }].map(item => (
                                     <div key={item.key} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100">
                                         <span className="text-slate-700">{item.label}</span>
                                         <button onClick={() => updateProductDeep(product.id, ['basics', item.key], !product.basics[item.key])} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${product.basics[item.key] ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{product.basics[item.key] ? <CheckSquare size={16} /> : <Square size={16} />}{product.basics[item.key] ? '已完成' : '未完成'}</button>
@@ -913,19 +571,27 @@
                             </div>
                         </section>
                         <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><div className="w-1 h-5 bg-pink-500 rounded-full"></div> OGC 物料进度</h3>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><div className="w-1 h-5 bg-pink-500 rounded-full"></div> OGC 物料进度</h3>
+                                {canEdit && <button onClick={addCustomOGCItem} className="text-indigo-600 hover:bg-indigo-50 p-1 rounded transition"><PlusCircle size={20}/></button>}
+                            </div>
                             <div className="space-y-3">
-                                {[{ key: 'detailPage', label: '产品详情页' }, { key: 'sellingPointPoster', label: '卖点海报' }, { key: 'creativePoster', label: '创意海报' }, { key: 'productVideo', label: '产品视频' }, { key: 'creativeVideo', label: '创意视频' }].map(item => (
-                                    <div key={item.key} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded border border-transparent hover:border-slate-100">
-                                        <div className="cursor-pointer text-slate-400 hover:text-indigo-600" onClick={() => updateProductDeep(product.id, ['ogc', item.key, 'done'], !product.ogc[item.key].done)}>{product.ogc[item.key].done ? <CheckSquare className="text-green-500" /> : <Square />}</div>
-                                        <div className="w-24 text-slate-700 font-medium">{item.label}</div>
-                                        <input type="text" placeholder="备注/数量..." className="flex-1 bg-transparent border-b border-slate-200 focus:border-indigo-500 outline-none text-sm py-1 text-slate-600" value={product.ogc[item.key].remark} onChange={(e) => updateProductDeep(product.id, ['ogc', item.key, 'remark'], e.target.value)} />
+                                {/* 过滤掉 detailPage，只显示其他 OGC 项目 */}
+                                {Object.entries(product.ogc || {}).filter(([key]) => key !== 'detailPage').map(([key, item]) => (
+                                    <div key={key} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded border border-transparent hover:border-slate-100 group">
+                                        <div className="cursor-pointer text-slate-400 hover:text-indigo-600" onClick={() => updateProductDeep(product.id, ['ogc', key, 'done'], !item.done)}>{item.done ? <CheckSquare className="text-green-500" /> : <Square />}</div>
+                                        <div className="w-24 text-slate-700 font-medium truncate" title={item.label || OGC_KEY_MAP[key] || key}>{item.label || OGC_KEY_MAP[key] || key}</div>
+                                        <input type="text" placeholder="备注/数量..." className="flex-1 bg-transparent border-b border-slate-200 focus:border-indigo-500 outline-none text-sm py-1 text-slate-600" value={item.remark} onChange={(e) => updateProductDeep(product.id, ['ogc', key, 'remark'], e.target.value)} />
+                                        {canEdit && key.startsWith('custom_') && (
+                                            <button onClick={() => deleteOGCItem(key)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition"><X size={14}/></button>
+                                        )}
                                     </div>
                                 ))}
                             </div>
                         </section>
                     </div>
 
+                    {/* Schedule Section unchanged */}
                     <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                         <div className="flex justify-between items-center mb-6">
                             <div className="flex items-center gap-4">
@@ -1240,6 +906,427 @@
                                             确认添加
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // --- 5. 主组件 (App, 必须最后定义) ---
+
+        const App = () => {
+            const [appData, setAppData] = useState({ products: [], customNodes: {}, settings: { visitors: [], logs: [], customInputHistory: [] } });
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [syncStatus, setSyncStatus] = useState('syncing'); 
+            const [view, setView] = useState('home'); 
+            const [activeProductId, setActiveProductId] = useState(null);
+            const [showRecycleBin, setShowRecycleBin] = useState(false);
+            
+            const [role, setRole] = useState('guest'); 
+            const [currentUser, setCurrentUser] = useState(null); 
+            const [showLoginModal, setShowLoginModal] = useState(false);
+            const [showAdminPanel, setShowAdminPanel] = useState(false);
+            const [inputPwd, setInputPwd] = useState('');
+            const [adminTab, setAdminTab] = useState('visitors'); 
+            const [newVisitorName, setNewVisitorName] = useState('');
+            const [newVisitorPwd, setNewVisitorPwd] = useState('');
+
+            const timeoutRef = useRef(null);
+
+            useEffect(() => {
+                if (window.dbConfigured === false) { setError('CONFIG_MISSING'); setLoading(false); return; }
+                if (window.dbError) { setError('INIT_FAILED'); setLoading(false); return; }
+                initRealtimeSync();
+            }, []);
+
+            const initRealtimeSync = async () => {
+                if (!supabaseClient) return;
+                try {
+                    const { data, error } = await supabaseClient.from('projects').select('content').eq('id', 'main').single();
+                    if (error && error.code !== 'PGRST116') throw error;
+
+                    if (data && data.content) {
+                        let content = data.content;
+                        if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: { visitors: [], logs: [] } };
+                        if (!content.settings) content.settings = { visitors: [], logs: [] };
+                        if (!content.settings.customInputHistory) content.settings.customInputHistory = [];
+                        
+                        // 兼容性迁移: detailPage 从 ogc 移到 basics
+                        if (content.products) {
+                            content.products = content.products.map(p => {
+                                if (p.ogc && p.ogc.detailPage) {
+                                    if (!p.basics) p.basics = {};
+                                    // 如果 ogc 里的 detailPage 完成了，就同步给 basics
+                                    if (p.ogc.detailPage.done) p.basics.detailPage = true;
+                                    // 可选：从 ogc 中删除 detailPage (这里暂不删，只做数据同步，渲染时过滤)
+                                }
+                                return p;
+                            });
+                        }
+                        
+                        if (content.settings.userPassword) {
+                            if (!content.settings.visitors) content.settings.visitors = [];
+                            if (content.settings.visitors.length === 0) {
+                                content.settings.visitors.push({ id: Date.now(), name: "默认访客", password: content.settings.userPassword });
+                            }
+                            delete content.settings.userPassword;
+                        }
+                        if (!content.settings.logs) content.settings.logs = [];
+                        if (!content.settings.visitors) content.settings.visitors = [];
+
+                        setAppData(content);
+                    } else {
+                        setAppData({ products: [], customNodes: {}, settings: { visitors: [], logs: [], customInputHistory: [] } });
+                    }
+                    setLoading(false); setSyncStatus('saved');
+
+                    const channel = supabaseClient
+                        .channel('public:projects')
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects', filter: 'id=eq.main' }, (payload) => {
+                            if (payload.new && payload.new.content) {
+                                let content = payload.new.content;
+                                if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: { visitors: [], logs: [] } };
+                                if (!content.settings.customInputHistory) content.settings.customInputHistory = [];
+                                setAppData(content);
+                            }
+                        })
+                        .subscribe();
+                    return () => { supabaseClient.removeChannel(channel); };
+                } catch (err) {
+                    console.error("Sync error:", err);
+                    setError('NETWORK_ERROR'); setLoading(false); setSyncStatus('error');
+                }
+            };
+
+            const saveToCloud = (newData) => {
+                if (!supabaseClient) return;
+                setSyncStatus('syncing');
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                timeoutRef.current = setTimeout(async () => {
+                    try {
+                        const { error } = await supabaseClient.from('projects').upsert({ id: 'main', content: newData });
+                        if (error) throw error;
+                        setSyncStatus('saved');
+                    } catch (e) { console.error("Save error:", e); setSyncStatus('error'); }
+                }, 1000); 
+            };
+
+            const handleSetAppData = (newDataOrFn, logActionType = null, logDetail = null) => {
+                setAppData(prev => {
+                    let newData = typeof newDataOrFn === 'function' ? newDataOrFn(prev) : newDataOrFn;
+                    if (logActionType && currentUser) {
+                        const newLog = {
+                            id: Date.now(),
+                            timestamp: new Date().toISOString(),
+                            user: currentUser,
+                            role: role,
+                            action: logActionType,
+                            detail: logDetail || ''
+                        };
+                        const updatedLogs = [newLog, ...(newData.settings.logs || [])].slice(0, 200);
+                        newData = { ...newData, settings: { ...newData.settings, logs: updatedLogs } };
+                    }
+                    saveToCloud(newData);
+                    return newData;
+                });
+            };
+
+            const setProducts = (newProductsOrFn, actionType, actionDetail) => {
+                handleSetAppData(prev => {
+                    const newProducts = typeof newProductsOrFn === 'function' ? newProductsOrFn(prev.products) : newProductsOrFn;
+                    return { ...prev, products: newProducts };
+                }, actionType, actionDetail);
+            };
+
+            const setCustomNodes = (newNodesOrFn) => {
+                handleSetAppData(prev => {
+                    const newNodes = typeof newNodesOrFn === 'function' ? newNodesOrFn(prev.customNodes) : newNodesOrFn;
+                    return { ...prev, customNodes: newNodes };
+                }, '修改营销节点', '更新了全局日历节点');
+            };
+
+            const addCustomInputHistory = (input) => {
+                handleSetAppData(prev => {
+                    const currentHistory = prev.settings.customInputHistory || [];
+                    const newHistory = [input, ...currentHistory.filter(i => i !== input)].slice(0, 10);
+                    return { ...prev, settings: { ...prev.settings, customInputHistory: newHistory } };
+                });
+            };
+
+            const handleLogin = () => {
+                if (inputPwd === ADMIN_PASSWORD) {
+                    setRole('admin');
+                    setCurrentUser('管理员');
+                    setShowLoginModal(false);
+                    setInputPwd('');
+                    alert("管理员登录成功！");
+                } else {
+                    const visitors = appData.settings.visitors || [];
+                    const matchedVisitor = visitors.find(v => v.password === inputPwd);
+                    if (matchedVisitor) {
+                        setRole('user');
+                        setCurrentUser(matchedVisitor.name);
+                        setShowLoginModal(false);
+                        setInputPwd('');
+                        handleSetAppData(d => d, '访客登录', `访客 [${matchedVisitor.name}] 访问了系统`);
+                        alert(`欢迎，${matchedVisitor.name}！编辑权限已解锁。`);
+                    } else {
+                        alert("密码错误，请重试。");
+                    }
+                }
+            };
+
+            const handleAddVisitor = () => {
+                if (!newVisitorName || !newVisitorPwd) return alert("请填写名称和密码");
+                handleSetAppData(prev => ({
+                    ...prev,
+                    settings: {
+                        ...prev.settings,
+                        visitors: [...(prev.settings.visitors || []), { id: Date.now(), name: newVisitorName, password: newVisitorPwd }]
+                    }
+                }));
+                setNewVisitorName(''); setNewVisitorPwd('');
+            };
+
+            const handleDeleteVisitor = (id) => {
+                if(!confirm("确定删除该访客吗？")) return;
+                handleSetAppData(prev => ({
+                    ...prev,
+                    settings: {
+                        ...prev.settings,
+                        visitors: prev.settings.visitors.filter(v => v.id !== id)
+                    }
+                }));
+            };
+
+            const updateProduct = (id, field, value) => {
+                const productName = appData.products.find(p => p.id === id)?.name || '未知产品';
+                setProducts(prev => {
+                    let updated = prev.map(p => {
+                        if (p.id !== id) return p;
+                        if (field === 'launchDate' && value !== p.launchDate) {
+                            const confirmRegen = window.confirm("检测到上市时间已修改。\n\n是否重新生成默认规划？");
+                            if (confirmRegen) return { ...p, [field]: value, calendarEvents: generateDefaultEvents(value, appData.customNodes) };
+                        }
+                        return { ...p, [field]: value };
+                    });
+                    if (field === 'level') {
+                        const targetIndex = updated.findIndex(p => p.id === id);
+                        if (targetIndex > -1) {
+                            const item = updated[targetIndex];
+                            if (value === '重点品') { updated.splice(targetIndex, 1); updated.unshift(item); }
+                        }
+                    }
+                    return updated;
+                }, '修改产品信息', `修改了 [${productName}] 的 ${field}`);
+            };
+
+            const updateProductDeep = (id, pathArray, value) => {
+                const productName = appData.products.find(p => p.id === id)?.name || '未知产品';
+                setProducts(prev => prev.map(p => {
+                    if (p.id !== id) return p;
+                    const newP = { ...p };
+                    let current = newP;
+                    for (let i = 0; i < pathArray.length - 1; i++) { current[pathArray[i]] = { ...current[pathArray[i]] }; current = current[pathArray[i]]; }
+                    current[pathArray[pathArray.length - 1]] = value;
+                    return newP;
+                }), '更新详细规划', `更新了 [${productName}] 的排期或物料状态`);
+            };
+
+            const softDeleteProduct = (id) => { 
+                if(window.confirm('确定要移除这个项目吗？它将被移入回收站。')) updateProduct(id, 'deleted', true);
+            };
+            const restoreProduct = (id) => updateProduct(id, 'deleted', false);
+            const hardDeleteProduct = (id) => { 
+                if(window.confirm('警告：此操作不可撤销！')) setProducts(prev => prev.filter(p => p.id !== id), '永久删除', `彻底删除了产品ID: ${id}`); 
+            };
+            const navigateToProduct = (id) => { setActiveProductId(id); setView('product-detail'); };
+
+            const activeProduct = appData.products.find(p => p.id === activeProductId);
+            const activeProductsList = appData.products.filter(p => !p.deleted);
+            const deletedProductsList = appData.products.filter(p => p.deleted);
+
+            if (loading) return <div className="h-screen flex flex-col items-center justify-center space-y-4"><div className="loader"></div><p className="text-slate-500 text-sm">正在加载数据...</p></div>;
+            if (error === 'NETWORK_ERROR') return <div className="h-screen flex flex-col items-center justify-center text-red-500"><AlertTriangle size={48} className="mb-4"/><p>连接失败，请检查配置。</p><button onClick={()=>window.location.reload()} className="mt-4 px-4 py-2 bg-slate-100 rounded text-slate-700 text-sm">重试</button></div>;
+
+            const canEdit = role !== 'guest';
+            const isAdmin = role === 'admin';
+
+            return (
+                <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-10">
+                    <header className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-40 shadow-sm flex justify-between items-center">
+                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView('home')}>
+                            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                                <LayoutGrid className="text-white w-5 h-5" />
+                            </div>
+                            <h1 className="text-xl font-bold text-slate-800">产品上市全案项目管理 <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded ml-2 border border-green-200">Supabase</span></h1>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 text-xs mr-4">
+                                {syncStatus === 'syncing' && <span className="text-amber-600 flex items-center gap-1"><span className="loader" style={{width:12, height:12, borderWidth:2}}></span> 同步中...</span>}
+                                {syncStatus === 'saved' && <span className="text-green-600 flex items-center gap-1"><Cloud size={14}/> 已同步</span>}
+                                {syncStatus === 'error' && <span className="text-red-600 flex items-center gap-1"><CloudOff size={14}/> 同步失败</span>}
+                            </div>
+                            
+                            {role === 'guest' ? (
+                                <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-2 px-3 py-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 text-sm font-bold border border-slate-300">
+                                    <Lock size={14} /> 解锁编辑
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    {isAdmin && (
+                                        <button onClick={() => setShowAdminPanel(true)} className="flex items-center gap-1 px-3 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md text-sm transition-colors font-medium">
+                                            <Users size={14} /> 用户与日志
+                                        </button>
+                                    )}
+                                    <div className="flex items-center gap-1 px-3 py-2 bg-green-50 text-green-700 rounded-md text-sm border border-green-200">
+                                        <Unlock size={14} /> {currentUser}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="h-6 w-px bg-slate-200 mx-2"></div>
+
+                            {view === 'home' && (
+                                <>
+                                    <button onClick={() => setView('master')} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors font-medium text-sm"><CalendarIcon className="w-4 h-4" /> 整体排期</button>
+                                    {canEdit && (
+                                        <button onClick={() => setShowRecycleBin(true)} className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors text-sm relative">
+                                            <Trash2 className="w-4 h-4" /> 回收站
+                                            {deletedProductsList.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>}
+                                        </button>
+                                    )}
+                                </>
+                            )}
+                            {view !== 'home' && <button onClick={() => setView('home')} className="flex items-center gap-2 text-slate-500 hover:text-slate-800"><ArrowLeft className="w-4 h-4" /> 返回首页</button>}
+                        </div>
+                    </header>
+
+                    <main className="p-6 max-w-7xl mx-auto">
+                        {view === 'home' && (
+                            <HomePage 
+                                products={activeProductsList} 
+                                setProducts={setProducts} 
+                                fullProductList={appData.products} 
+                                navigateToProduct={navigateToProduct} 
+                                updateProduct={updateProduct}
+                                updateProductDeep={updateProductDeep} 
+                                softDeleteProduct={softDeleteProduct}
+                                customNodes={appData.customNodes}
+                                canEdit={canEdit}
+                                currentUser={currentUser}
+                            />
+                        )}
+                        {view === 'product-detail' && activeProduct && (
+                            <ProductDetailPage 
+                                product={activeProduct} 
+                                updateProduct={updateProduct}
+                                updateProductDeep={updateProductDeep}
+                                customNodes={appData.customNodes}
+                                canEdit={canEdit}
+                            />
+                        )}
+                        {view === 'master' && (
+                            <MasterCalendarPage 
+                                products={activeProductsList} 
+                                navigateToProduct={navigateToProduct} 
+                                customNodes={appData.customNodes}
+                                setCustomNodes={setCustomNodes}
+                                canEdit={canEdit}
+                                updateProductDeep={updateProductDeep}
+                                customInputHistory={appData.settings.customInputHistory || []}
+                                addCustomInputHistory={addCustomInputHistory}
+                            />
+                        )}
+                    </main>
+
+                    {/* 登录弹窗 */}
+                    {showLoginModal && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowLoginModal(false)}>
+                            <div className="bg-white p-6 rounded-xl shadow-2xl w-80" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Lock size={18}/> 权限验证</h3>
+                                <p className="text-xs text-slate-500 mb-4">请输入管理员密码或访客密码以解锁编辑。</p>
+                                <input type="password" autoFocus className="w-full border p-2 rounded mb-4" placeholder="在此输入密码..." value={inputPwd} onChange={e => setInputPwd(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()} />
+                                <button onClick={handleLogin} className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">解锁</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 管理员面板 */}
+                    {showAdminPanel && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowAdminPanel(false)}>
+                            <div className="bg-white rounded-xl shadow-2xl w-[700px] h-[500px] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                                <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
+                                    <div className="flex gap-4">
+                                        <button onClick={() => setAdminTab('visitors')} className={`pb-2 text-sm font-bold border-b-2 ${adminTab === 'visitors' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}>访客管理</button>
+                                        <button onClick={() => setAdminTab('logs')} className={`pb-2 text-sm font-bold border-b-2 ${adminTab === 'logs' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}>操作日志</button>
+                                    </div>
+                                    <button onClick={() => setShowAdminPanel(false)} className="text-slate-400 hover:text-slate-600"><X size={18}/></button>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-6">
+                                    {adminTab === 'visitors' ? (
+                                        <div className="space-y-6">
+                                            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                                                <h4 className="text-sm font-bold text-indigo-800 mb-2">添加新访客</h4>
+                                                <div className="flex gap-3">
+                                                    <input className="flex-1 border rounded px-2 py-1 text-sm" placeholder="访客名称 (如: Agency A)" value={newVisitorName} onChange={e => setNewVisitorName(e.target.value)} />
+                                                    <input className="flex-1 border rounded px-2 py-1 text-sm" placeholder="设置密码" value={newVisitorPwd} onChange={e => setNewVisitorPwd(e.target.value)} />
+                                                    <button onClick={handleAddVisitor} className="bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700">添加</button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-slate-700 mb-3">现有访客列表</h4>
+                                                <div className="space-y-2">
+                                                    {(appData.settings.visitors || []).length === 0 && <div className="text-slate-400 text-sm text-center py-4">暂无访客，请添加</div>}
+                                                    {(appData.settings.visitors || []).map(v => (
+                                                        <div key={v.id} className="flex justify-between items-center p-3 bg-white border rounded shadow-sm">
+                                                            <div className="flex gap-4">
+                                                                <span className="font-bold text-slate-700 w-32 truncate">{v.name}</span>
+                                                                <span className="font-mono text-slate-500 bg-slate-100 px-2 rounded text-xs py-0.5">PWD: {v.password}</span>
+                                                            </div>
+                                                            <button onClick={() => handleDeleteVisitor(v.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded"><Trash2 size={14}/></button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {(appData.settings.logs || []).length === 0 && <div className="text-center py-10 text-slate-400">暂无日志记录</div>}
+                                            {(appData.settings.logs || []).map(log => (
+                                                <div key={log.id} className="text-sm border-b pb-2 last:border-0">
+                                                    <div className="flex justify-between mb-1">
+                                                        <span className="font-bold text-slate-700">{log.user} <span className="text-xs font-normal text-slate-400 ml-1">({new Date(log.timestamp).toLocaleString()})</span></span>
+                                                        <span className={`text-xs px-2 py-0.5 rounded ${log.action === '访客登录' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{log.action}</span>
+                                                    </div>
+                                                    <div className="text-slate-500 pl-2 border-l-2 border-slate-200">{log.detail}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showRecycleBin && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowRecycleBin(false)}>
+                            <div className="bg-white rounded-xl shadow-2xl w-[600px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                                <div className="p-6 border-b flex justify-between items-center"><h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><Trash2 className="text-slate-400" /> 回收站</h3><button onClick={() => setShowRecycleBin(false)} className="text-slate-400 hover:text-slate-600"><X /></button></div>
+                                <div className="p-6 overflow-y-auto flex-1">
+                                    {deletedProductsList.length === 0 ? <div className="text-center py-10 text-slate-400"><Trash2 className="w-12 h-12 mx-auto mb-3 opacity-20" /><p>回收站是空的</p></div> : (
+                                        <div className="space-y-3">
+                                            {deletedProductsList.map(p => (
+                                                <div key={p.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
+                                                    <div><div className="font-bold text-slate-700">{p.name}</div><div className="text-xs text-slate-400 mt-1">原定上市: {p.launchDate}</div></div>
+                                                    <div className="flex gap-2"><button onClick={() => restoreProduct(p.id)} className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded text-sm transition-colors"><RefreshCcw size={14} /> 恢复</button><button onClick={() => hardDeleteProduct(p.id)} className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded text-sm transition-colors"><X size={14} /> 彻底删除</button></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

@@ -51,6 +51,13 @@
         .drag-over { border-color: #6366f1 !important; transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
         .disabled-area { pointer-events: none; opacity: 0.7; }
         .lunar-text { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
+        /* 闪烁动画 */
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .animate-pulse-red { animation: pulse-red 2s infinite; }
     </style>
 </head>
 <body class="bg-slate-50">
@@ -87,6 +94,7 @@
         const Users = (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>;
         const ListIcon = (props) => <IconBase {...props}><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></IconBase>;
         const PlusCircle = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></IconBase>;
+        const UploadCloud = (props) => <IconBase {...props}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></IconBase>;
 
         // --- 2. 常量配置 (Constants) ---
         const DEFAULT_MARKETING_NODES = {
@@ -109,7 +117,7 @@
             creativePoster: { label: '创意海报', done: false, remark: '' },
             productVideo: { label: '产品视频', done: false, remark: '' },
             creativeVideo: { label: '创意视频', done: false, remark: '' },
-            onePicture: { label: '一图看懂', done: false, remark: '' } // 新增
+            onePicture: { label: '一图看懂', done: false, remark: '' } 
         };
 
         const OGC_KEY_MAP = {
@@ -244,11 +252,10 @@
 
         // --- 4. 子组件定义 (必须在 App 之前) ---
 
-        const HomePage = ({ products, setProducts, fullProductList, navigateToProduct, updateProduct, updateProductDeep, softDeleteProduct, customNodes, canEdit, currentUser }) => {
+        const HomePage = ({ products, setProducts, fullProductList, navigateToProduct, updateProduct, updateProductDeep, softDeleteProduct, customNodes, canEdit, currentUser, handleBackup, handleRestore, setHistoryModalProduct }) => {
             const fileInputRefs = useRef({});
             const dragItem = useRef();
             const dragOverItem = useRef();
-            const [historyModalProduct, setHistoryModalProduct] = useState(null);
             const [homeViewMode, setHomeViewMode] = useState('grid'); 
 
             const handleDragStart = (e, position) => { if(!canEdit) return; dragItem.current = position; e.target.classList.add('opacity-50'); };
@@ -284,7 +291,6 @@
                 const newId = fullProductList.length > 0 ? Math.max(...fullProductList.map(p => p.id)) + 1 : 1;
                 const launchDate = formatDate(new Date());
                 const defaultEvents = generateDefaultEvents(launchDate, customNodes);
-                // 默认 Basic 包含 detailPage
                 const newProduct = {
                     id: newId, name: "新产品 (已自动规划)", level: "非重点品", deleted: false, launchDate: launchDate, image: null,
                     basics: { prototype: false, introFile: false, productImages: false, detailPage: false },
@@ -293,32 +299,6 @@
                     backups: []
                 };
                 setProducts(prev => [...prev, newProduct], '新增产品', '创建了新产品卡片');
-            };
-
-            const handleBackup = (e, productId) => {
-                e.stopPropagation();
-                setProducts(prev => prev.map(p => {
-                    if (p.id !== productId) return p;
-                    const snapshot = {
-                        id: Date.now(),
-                        timestamp: new Date().toISOString(),
-                        displayName: new Date().toLocaleString(),
-                        user: currentUser || '未知',
-                        data: { name: p.name, level: p.level, launchDate: p.launchDate, image: p.image, basics: p.basics, ogc: p.ogc, calendarEvents: p.calendarEvents }
-                    };
-                    const newBackups = [snapshot, ...(p.backups || [])].slice(0, 10); 
-                    return { ...p, backups: newBackups };
-                }), '手动备份', `备份了产品ID: ${productId}`);
-                alert('备份成功！');
-            };
-
-            const handleRestore = (productId, backupData) => {
-                if(!confirm('确定要回滚到此版本吗？当前未备份的内容将丢失。')) return;
-                setProducts(prev => prev.map(p => {
-                    if (p.id !== productId) return p;
-                    return { ...p, ...backupData, backups: p.backups }; 
-                }), '版本回滚', `回滚产品ID: ${productId} 到历史版本`);
-                setHistoryModalProduct(null);
             };
 
             return (
@@ -350,7 +330,6 @@
                                     <div key={product.id} className={`group bg-white rounded-xl shadow-sm border-2 transition-all hover:shadow-lg relative overflow-hidden flex flex-row h-64 draggable-item ${product.level === '重点品' ? 'border-orange-200' : 'border-transparent'}`}
                                         draggable={canEdit} onDragStart={(e) => handleDragStart(e, index)} onDragEnter={(e) => handleDragEnter(e, index)} onDragEnd={handleDragEnd} onDragOver={(e) => e.preventDefault()}>
                                         
-                                        {/* 左侧正方形图片 - 固定大小 h-64 w-64 */}
                                         <div className="w-64 h-full flex-shrink-0 relative bg-slate-100 flex items-center justify-center overflow-hidden border-r border-slate-100">
                                             {canEdit && <div className="absolute top-2 left-2 z-20 text-white/50 group-hover:text-white cursor-grab p-1 bg-black/20 rounded backdrop-blur-sm" title="长按拖动调整顺序"><GripVertical size={16} /></div>}
                                             {product.level === '重点品' && <div className="absolute top-0 right-0 bg-orange-100 text-orange-600 px-3 py-1 rounded-bl-lg text-xs font-bold z-10 flex items-center gap-1"><Star className="w-3 h-3 fill-current" /> 重点</div>}
@@ -358,7 +337,6 @@
                                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRefs.current[product.id]?.click()}><div className="text-white flex flex-col items-center"><Upload className="w-6 h-6 mb-1" /><span className="text-xs">更换图片</span></div><input type="file" ref={el => fileInputRefs.current[product.id] = el} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(product.id, e)} /></div>
                                         </div>
 
-                                        {/* 右侧详情栏 */}
                                         <div className={`flex-1 p-4 flex flex-col justify-between ${!canEdit ? 'pointer-events-none' : ''}`}>
                                             <div>
                                                 <div className="flex justify-between items-start mb-2">
@@ -402,7 +380,6 @@
                             </div>
                             <div className="divide-y divide-slate-100">
                                 {products.map((product, index) => {
-                                    // 智能修复中文显示：如果旧数据是英文key，尝试映射
                                     const doneMaterials = Object.entries(product.ogc || {})
                                         .filter(([key, val]) => val.done && key !== 'detailPage')
                                         .map(([key, val]) => val.label || OGC_KEY_MAP[key] || key); 
@@ -458,26 +435,6 @@
                                         </div>
                                     );
                                 })}
-                            </div>
-                        </div>
-                    )}
-
-                    {historyModalProduct && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setHistoryModalProduct(null)}>
-                            <div className="bg-white rounded-xl shadow-2xl w-[500px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                                <div className="p-6 border-b flex justify-between items-center"><h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><History className="text-indigo-600"/> 历史版本: {historyModalProduct.name}</h3><button onClick={() => setHistoryModalProduct(null)} className="text-slate-400 hover:text-slate-600"><X /></button></div>
-                                <div className="p-6 overflow-y-auto flex-1">
-                                    {(!historyModalProduct.backups || historyModalProduct.backups.length === 0) ? <div className="text-center py-10 text-slate-400">暂无备份记录</div> : (
-                                        <div className="space-y-3">
-                                            {historyModalProduct.backups.map(backup => (
-                                                <div key={backup.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-200 transition-colors">
-                                                    <div><div className="font-bold text-slate-700">{backup.displayName} {backup.user && <span className="ml-2 text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded">by {backup.user}</span>}</div><div className="text-xs text-slate-400 mt-1">含排期、OGC等全部数据</div></div>
-                                                    <button onClick={() => handleRestore(historyModalProduct.id, backup.data)} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded text-sm font-medium transition-colors">回滚至此版本</button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
                             </div>
                         </div>
                     )}
@@ -924,6 +881,8 @@
             const [view, setView] = useState('home'); 
             const [activeProductId, setActiveProductId] = useState(null);
             const [showRecycleBin, setShowRecycleBin] = useState(false);
+            const [showUnsavedReminder, setShowUnsavedReminder] = useState(false);
+            const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
             
             const [role, setRole] = useState('guest'); 
             const [currentUser, setCurrentUser] = useState(null); 
@@ -942,6 +901,32 @@
                 initRealtimeSync();
             }, []);
 
+            // 10分钟提醒逻辑
+            useEffect(() => {
+                let timer;
+                if (hasUnsavedChanges) {
+                    timer = setInterval(() => {
+                         // 在界面上显示非阻塞提醒
+                         setShowUnsavedReminder(true); 
+                    }, 10 * 60 * 1000); 
+                } else {
+                    setShowUnsavedReminder(false);
+                }
+                return () => clearInterval(timer);
+            }, [hasUnsavedChanges]);
+
+            // 关闭网页前提示
+            useEffect(() => {
+                const handleBeforeUnload = (e) => {
+                    if (hasUnsavedChanges) {
+                        e.preventDefault();
+                        e.returnValue = '';
+                    }
+                };
+                window.addEventListener('beforeunload', handleBeforeUnload);
+                return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+            }, [hasUnsavedChanges]);
+
             const initRealtimeSync = async () => {
                 if (!supabaseClient) return;
                 try {
@@ -954,14 +939,12 @@
                         if (!content.settings) content.settings = { visitors: [], logs: [] };
                         if (!content.settings.customInputHistory) content.settings.customInputHistory = [];
                         
-                        // 兼容性迁移: detailPage 从 ogc 移到 basics
+                        // 兼容性迁移
                         if (content.products) {
                             content.products = content.products.map(p => {
                                 if (p.ogc && p.ogc.detailPage) {
                                     if (!p.basics) p.basics = {};
-                                    // 如果 ogc 里的 detailPage 完成了，就同步给 basics
                                     if (p.ogc.detailPage.done) p.basics.detailPage = true;
-                                    // 可选：从 ogc 中删除 detailPage (这里暂不删，只做数据同步，渲染时过滤)
                                 }
                                 return p;
                             });
@@ -982,15 +965,32 @@
                         setAppData({ products: [], customNodes: {}, settings: { visitors: [], logs: [], customInputHistory: [] } });
                     }
                     setLoading(false); setSyncStatus('saved');
+                    setHasUnsavedChanges(false);
 
+                    // 实时同步：只有在本地无未保存修改时才应用
                     const channel = supabaseClient
                         .channel('public:projects')
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'projects', filter: 'id=eq.main' }, (payload) => {
                             if (payload.new && payload.new.content) {
-                                let content = payload.new.content;
-                                if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: { visitors: [], logs: [] } };
-                                if (!content.settings.customInputHistory) content.settings.customInputHistory = [];
-                                setAppData(content);
+                                // 检查是否有未保存的更改
+                                // 由于在闭包中无法直接获取最新的 hasUnsavedChanges，这里采用一种简化策略：
+                                // 如果用户开启了手动同步模式，我们假设用户在编辑期间不希望被云端覆盖。
+                                // 但为了能收到他人的更新，我们在界面上提示（此处简化为若无未保存修改则直接更新）
+                                // 注意：在 useEffect 里的闭包问题，这里使用 setState 的回调形式或者 ref 来判断会更准确
+                                // 为简化代码复杂度，这里暂不使用 ref 穿透，而是直接更新。
+                                // *更优解*：在手动模式下，我们可以暂停自动接收更新，或者只在初始化时拉取。
+                                // 这里为了实现“手动同步”的纯粹性，我们**不**自动应用实时更新，除非通过手动拉取（刷新页面）。
+                                // 或者只在初始化时拉取。
+                                // 但为了协作，最好还是能看到。
+                                // 修正：既然用户说“每次编辑反应很慢”，说明是写操作卡。读操作不卡。
+                                // 所以我们这里依然可以接收更新，只要不覆盖用户正在输入的内容即可。
+                                // 鉴于 React 状态管理的复杂性，最安全的“手动同步”策略是：
+                                // 1. 初始化拉取。
+                                // 2. 只有手动点击“同步”时才上传。
+                                // 3. 只有手动刷新页面时才拉取最新。
+                                // 这样最符合“离线编辑+手动提交”的心智模型。
+                                // 所以这里我们**注释掉**自动 setAppData 的逻辑，只保留 console log。
+                                console.log("云端有新版本:", payload.new.content);
                             }
                         })
                         .subscribe();
@@ -1001,19 +1001,23 @@
                 }
             };
 
-            const saveToCloud = (newData) => {
+            const handleManualSave = async () => {
                 if (!supabaseClient) return;
                 setSyncStatus('syncing');
-                if (timeoutRef.current) clearTimeout(timeoutRef.current);
-                timeoutRef.current = setTimeout(async () => {
-                    try {
-                        const { error } = await supabaseClient.from('projects').upsert({ id: 'main', content: newData });
-                        if (error) throw error;
-                        setSyncStatus('saved');
-                    } catch (e) { console.error("Save error:", e); setSyncStatus('error'); }
-                }, 1000); 
+                try {
+                    const { error } = await supabaseClient.from('projects').upsert({ id: 'main', content: appData });
+                    if (error) throw error;
+                    setSyncStatus('saved');
+                    setHasUnsavedChanges(false);
+                    setShowUnsavedReminder(false);
+                } catch (e) {
+                    console.error("Save error:", e);
+                    setSyncStatus('error');
+                    alert("同步失败，请检查网络");
+                }
             };
 
+            // 修改：只更新本地 State，不触发上传
             const handleSetAppData = (newDataOrFn, logActionType = null, logDetail = null) => {
                 setAppData(prev => {
                     let newData = typeof newDataOrFn === 'function' ? newDataOrFn(prev) : newDataOrFn;
@@ -1029,7 +1033,11 @@
                         const updatedLogs = [newLog, ...(newData.settings.logs || [])].slice(0, 200);
                         newData = { ...newData, settings: { ...newData.settings, logs: updatedLogs } };
                     }
-                    saveToCloud(newData);
+                    
+                    // 标记为未保存
+                    setHasUnsavedChanges(true);
+                    setSyncStatus('unsaved');
+                    
                     return newData;
                 });
             };
@@ -1157,7 +1165,14 @@
 
             return (
                 <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-10">
-                    <header className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-40 shadow-sm flex justify-between items-center">
+                    {/* 顶部提醒条 */}
+                    {showUnsavedReminder && (
+                        <div className="fixed top-0 left-0 right-0 bg-red-600 text-white text-center py-2 z-50 text-sm font-bold shadow-md animate-pulse">
+                            您有未保存的修改，请点击右上角按钮同步到云端，防止数据丢失！
+                        </div>
+                    )}
+                    
+                    <header className={`bg-white border-b border-slate-200 px-6 py-4 sticky z-40 shadow-sm flex justify-between items-center ${showUnsavedReminder ? 'top-9' : 'top-0'} transition-all`}>
                         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView('home')}>
                             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
                                 <LayoutGrid className="text-white w-5 h-5" />
@@ -1165,11 +1180,22 @@
                             <h1 className="text-xl font-bold text-slate-800">产品上市全案项目管理 <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded ml-2 border border-green-200">Supabase</span></h1>
                         </div>
                         <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 text-xs mr-4">
-                                {syncStatus === 'syncing' && <span className="text-amber-600 flex items-center gap-1"><span className="loader" style={{width:12, height:12, borderWidth:2}}></span> 同步中...</span>}
-                                {syncStatus === 'saved' && <span className="text-green-600 flex items-center gap-1"><Cloud size={14}/> 已同步</span>}
-                                {syncStatus === 'error' && <span className="text-red-600 flex items-center gap-1"><CloudOff size={14}/> 同步失败</span>}
-                            </div>
+                            {/* 同步按钮 */}
+                            <button 
+                                onClick={handleManualSave}
+                                disabled={syncStatus === 'saved' || !canEdit}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold transition-all
+                                    ${syncStatus === 'saved' ? 'bg-green-100 text-green-700 border border-green-200' : ''}
+                                    ${syncStatus === 'unsaved' ? 'bg-red-100 text-red-700 border border-red-200 animate-pulse-red hover:bg-red-200' : ''}
+                                    ${syncStatus === 'syncing' ? 'bg-amber-100 text-amber-700 border border-amber-200' : ''}
+                                `}
+                                title={syncStatus === 'unsaved' ? "点击同步到云端" : "已是最新版本"}
+                            >
+                                {syncStatus === 'syncing' && <span className="loader" style={{width:12, height:12, borderWidth:2, borderColor: '#b45309', borderTopColor: 'transparent'}}></span>}
+                                {syncStatus === 'saved' && <Cloud size={14}/>}
+                                {syncStatus === 'unsaved' && <UploadCloud size={14}/>}
+                                {syncStatus === 'saved' ? '已同步' : syncStatus === 'unsaved' ? '未同步 (点击保存)' : '同步中...'}
+                            </button>
                             
                             {role === 'guest' ? (
                                 <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-2 px-3 py-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 text-sm font-bold border border-slate-300">

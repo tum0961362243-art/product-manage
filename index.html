@@ -96,6 +96,7 @@
         const PlusCircle = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></IconBase>;
         const UploadCloud = (props) => <IconBase {...props}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></IconBase>;
         const Target = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></IconBase>;
+        const Layers = (props) => <IconBase {...props}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></IconBase>;
 
         // --- 2. 常量配置 (Constants) ---
         const DEFAULT_MARKETING_NODES = {
@@ -364,9 +365,10 @@
                                             </div>
 
                                             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-50">
-                                                {canEdit && <button onClick={(e) => handleBackup(e, product.id)} className="text-slate-400 hover:text-indigo-600 p-1" title="备份"><Save size={14}/></button>}
-                                                {canEdit && <button onClick={(e) => { e.stopPropagation(); setHistoryModalProduct(product); }} className="text-slate-400 hover:text-indigo-600 p-1" title="历史"><History size={14}/></button>}
-                                                {canEdit && <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); softDeleteProduct(product.id); }} className="text-slate-400 hover:text-red-500 p-1" title="删除"><Trash2 size={14}/></button>}
+                                                {/* 修复：确保事件正确传递并阻止冒泡 */}
+                                                {canEdit && <button onClick={(e) => handleBackup(e, product.id)} className="text-slate-400 hover:text-indigo-600 p-1 pointer-events-auto" title="备份"><Save size={14}/></button>}
+                                                {canEdit && <button onClick={(e) => { e.stopPropagation(); setHistoryModalProduct(product); }} className="text-slate-400 hover:text-indigo-600 p-1 pointer-events-auto" title="历史"><History size={14}/></button>}
+                                                {canEdit && <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); softDeleteProduct(product.id); }} className="text-slate-400 hover:text-red-500 p-1 pointer-events-auto" title="删除"><Trash2 size={14}/></button>}
                                                 <button onClick={(e) => { e.stopPropagation(); navigateToProduct(product.id); }} className={`ml-2 px-3 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-bold rounded flex items-center gap-1 transition-colors ${!canEdit ? 'pointer-events-auto' : ''}`}>详情 <ArrowRight size={10} /></button>
                                             </div>
                                         </div>
@@ -429,7 +431,9 @@
                                                 <input type="text" className="w-full bg-transparent border-b border-transparent hover:border-slate-300 outline-none text-xs text-slate-600" placeholder="备注..." value={product.remark || ''} onChange={(e) => updateProduct(product.id, 'remark', e.target.value)} disabled={!canEdit} />
                                             </div>
                                             <div className="flex justify-end gap-2">
+                                                {/* 修复：列表模式下之前缺失历史记录按钮，且添加了 preventDefault */}
                                                 {canEdit && <button onClick={(e) => handleBackup(e, product.id)} className="text-slate-400 hover:text-indigo-600" title="备份"><Save size={14}/></button>}
+                                                {canEdit && <button onClick={(e) => { e.stopPropagation(); setHistoryModalProduct(product); }} className="text-slate-400 hover:text-indigo-600" title="历史"><History size={14}/></button>}
                                                 {canEdit && <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); softDeleteProduct(product.id); }} className="text-slate-400 hover:text-red-600" title="删除"><Trash2 size={14}/></button>}
                                                 <button onClick={(e) => { e.stopPropagation(); navigateToProduct(product.id); }} className="text-indigo-600 hover:text-indigo-800 font-bold text-xs">详情 &gt;</button>
                                             </div>
@@ -621,7 +625,7 @@
             );
         };
 
-        const MasterCalendarPage = ({ products, navigateToProduct, customNodes, setCustomNodes, canEdit, updateProductDeep, customInputHistory, addCustomInputHistory }) => {
+        const MasterCalendarPage = ({ products, navigateToProduct, customNodes, setCustomNodes, canEdit, updateProductDeep, customInputHistory, addCustomInputHistory, globalBackups, saveGlobalBackup, restoreGlobalBackup, clearAllSchedules }) => {
             const [currentDate, setCurrentDate] = useState(new Date());
             const [showNodeModal, setShowNodeModal] = useState(false);
             const [newNodeDate, setNewNodeDate] = useState('');
@@ -633,6 +637,10 @@
             const [targetProductId, setTargetProductId] = useState('');
             const [targetContent, setTargetContent] = useState('');
             const [isCustomContent, setIsCustomContent] = useState(false);
+
+            // Backup Modal State
+            const [showBackupModal, setShowBackupModal] = useState(false);
+            const [backupNote, setBackupNote] = useState('');
 
             const getDaysInMonth = (date) => { const year = date.getFullYear(); const month = date.getMonth(); const days = new Date(year, month + 1, 0).getDate(); const firstDay = new Date(year, month, 1).getDay(); return { days, firstDay }; };
             const { days, firstDay } = getDaysInMonth(currentDate);
@@ -650,6 +658,23 @@
                 delete newNodes[dateKey];
                 setCustomNodes(newNodes);
             };
+
+            // --- 🔥 新增功能：处理删除单个排期事件 🔥 ---
+            const handleDeleteEvent = (productId, dateStr, eventIndex) => {
+                if(!canEdit) return;
+                if(!confirm('确定删除这条排期吗？')) return;
+                
+                const product = products.find(p => p.id === productId);
+                if (!product) return;
+                
+                // 复制并修改数组
+                const events = [...(product.calendarEvents[dateStr] || [])];
+                events.splice(eventIndex, 1);
+                
+                // 调用父组件更新方法
+                updateProductDeep(productId, ['calendarEvents', dateStr], events);
+            };
+            // ------------------------------------------------
 
             // Handle clicking on a calendar cell to add event
             const handleCellClick = (dateStr) => {
@@ -744,7 +769,34 @@
                                 {dayEvents.map((item, idx) => (
                                     <div key={idx} className="mb-2 last:mb-0">
                                         {item.isLaunch && (<div className="bg-red-500 text-white text-[10px] px-1.5 py-1 rounded font-bold mb-1 cursor-pointer truncate shadow-sm flex items-center gap-1" onClick={(e) => {e.stopPropagation(); navigateToProduct(item.product.id)}}>🚀 [{item.product.name}] 上市</div>)}
-                                        {item.events.map((ev, ei) => (<div key={ei} className={`text-[10px] px-1.5 py-1 rounded border mb-0.5 truncate cursor-pointer flex items-center gap-1 ${item.color.bg} ${item.color.text} ${item.color.border} border`} title={`${item.product.name}: ${ev.content}`} onClick={(e) => {e.stopPropagation(); navigateToProduct(item.product.id)}}><span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.color.dot}`}></span><span className="font-bold opacity-90">[{item.product.name}]</span><span>{ev.content}</span></div>))}
+                                        {item.events.map((ev, ei) => (
+                                            /* --- 🔥 修改处：增加了 group/item 和删除按钮 🔥 --- */
+                                            <div 
+                                                key={ei} 
+                                                className={`text-[10px] px-1.5 py-1 rounded border mb-0.5 truncate cursor-pointer flex items-center gap-1 ${item.color.bg} ${item.color.text} ${item.color.border} border relative group/item`} 
+                                                title={`${item.product.name}: ${ev.content}`} 
+                                                onClick={(e) => {e.stopPropagation(); navigateToProduct(item.product.id)}}
+                                            >
+                                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.color.dot}`}></span>
+                                                <span className="font-bold opacity-90">[{item.product.name}]</span>
+                                                <span className="flex-1 truncate">{ev.content}</span>
+                                                
+                                                {/* 删除按钮 (只在编辑模式 & 悬停时显示) */}
+                                                {canEdit && (
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation(); // 阻止冒泡，防止跳转详情页
+                                                            handleDeleteEvent(item.product.id, dateStr, ei);
+                                                        }} 
+                                                        className="absolute right-0 top-0 bottom-0 px-1.5 bg-red-500 text-white opacity-0 group-hover/item:opacity-100 flex items-center justify-center transition-opacity z-10 hover:bg-red-600"
+                                                        title="删除此排期"
+                                                    >
+                                                        <X size={10} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            /* ---------------------------------------------------- */
+                                        ))}
                                     </div>
                                 ))}
                             </div>
@@ -770,7 +822,16 @@
             return (
                 <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden relative">
                     <div className="p-6 border-b flex justify-between items-center bg-slate-50">
-                        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><CalendarIcon className="text-indigo-600" /> 整体全案排期</h2>
+                        <div className="flex items-center gap-4">
+                            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><CalendarIcon className="text-indigo-600" /> 整体全案排期</h2>
+                             {/* 全局操作按钮 */}
+                             {canEdit && (
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowBackupModal(true)} className="text-slate-500 hover:text-indigo-600 hover:bg-slate-100 p-1.5 rounded flex items-center gap-1 text-xs transition-colors" title="全局备份/恢复"><Layers size={14}/> 方案管理</button>
+                                    <button onClick={clearAllSchedules} className="text-slate-500 hover:text-red-600 hover:bg-red-50 p-1.5 rounded flex items-center gap-1 text-xs transition-colors" title="清空所有排期"><Trash2 size={14}/> 一键清空</button>
+                                </div>
+                            )}
+                        </div>
                         <div className="flex items-center gap-4">
                             {canEdit && <button onClick={() => setShowNodeModal(true)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50 text-sm"><Plus size={14}/> 管理营销节点</button>}
                             <div className="flex items-center bg-white rounded-md border shadow-sm"><button onClick={() => changeMonth(-1)} className="p-2 hover:bg-slate-100"><ChevronLeft size={20}/></button><div className="w-32 text-center font-bold text-slate-700">{currentDate.getFullYear()}年 {monthNames[currentDate.getMonth()]}</div><button onClick={() => changeMonth(1)} className="p-2 hover:bg-slate-100"><ChevronRight size={20}/></button></div>
@@ -787,6 +848,43 @@
                                     <div><label className="block text-xs text-slate-500 mb-1">日期</label><input type="date" className="w-full border rounded p-2 text-sm" value={newNodeDate} onChange={e => setNewNodeDate(e.target.value)} /></div>
                                     <div><label className="block text-xs text-slate-500 mb-1">节点名称</label><input type="text" className="w-full border rounded p-2 text-sm" placeholder="例如：公司周年庆" value={newNodeName} onChange={e => setNewNodeName(e.target.value)} /></div>
                                     <button onClick={handleAddNode} className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">添加</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 全局备份管理 Modal */}
+                    {showBackupModal && (
+                        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setShowBackupModal(false)}>
+                            <div className="bg-white rounded-xl shadow-2xl w-[500px] flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+                                <div className="p-5 border-b flex justify-between items-center">
+                                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Layers size={18}/> 全局方案管理</h3>
+                                    <button onClick={() => setShowBackupModal(false)}><X size={18} className="text-slate-400 hover:text-slate-600"/></button>
+                                </div>
+                                <div className="p-5 flex-1 overflow-y-auto">
+                                    <div className="bg-indigo-50 p-4 rounded-lg mb-6 border border-indigo-100">
+                                        <h4 className="text-sm font-bold text-indigo-800 mb-2">备份当前方案</h4>
+                                        <div className="flex gap-2">
+                                            <input type="text" className="flex-1 border rounded px-3 py-1.5 text-sm" placeholder="备注 (例如: 618大促初版)..." value={backupNote} onChange={(e) => setBackupNote(e.target.value)} />
+                                            <button onClick={() => { saveGlobalBackup(backupNote); setBackupNote(''); }} className="bg-indigo-600 text-white px-4 py-1.5 rounded text-sm hover:bg-indigo-700 font-medium whitespace-nowrap">创建备份</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <h4 className="text-sm font-bold text-slate-700 mb-3">历史备份记录 (自动保留最近5条)</h4>
+                                        <div className="space-y-3">
+                                            {globalBackups.length === 0 && <div className="text-slate-400 text-center py-6 text-sm">暂无备份记录</div>}
+                                            {globalBackups.map(backup => (
+                                                <div key={backup.id} className="border rounded-lg p-3 bg-white flex justify-between items-center hover:shadow-sm transition-shadow">
+                                                    <div>
+                                                        <div className="font-bold text-slate-700 text-sm">{backup.note}</div>
+                                                        <div className="text-xs text-slate-400 mt-1">{new Date(backup.timestamp).toLocaleString()}</div>
+                                                    </div>
+                                                    <button onClick={() => restoreGlobalBackup(backup.id)} className="px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-green-100 hover:text-green-700 rounded text-xs font-bold transition-colors border border-slate-200 hover:border-green-200">恢复此方案</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -896,7 +994,7 @@
         // --- 5. 主组件 (App, 必须最后定义) ---
 
         const App = () => {
-            const [appData, setAppData] = useState({ products: [], customNodes: {}, settings: { visitors: [], logs: [], customInputHistory: [] } });
+            const [appData, setAppData] = useState({ products: [], customNodes: {}, settings: { visitors: [], logs: [], customInputHistory: [], globalBackups: [] } });
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
             const [syncStatus, setSyncStatus] = useState('syncing'); 
@@ -905,6 +1003,7 @@
             const [showRecycleBin, setShowRecycleBin] = useState(false);
             const [showUnsavedReminder, setShowUnsavedReminder] = useState(false);
             const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+            const [historyModalProduct, setHistoryModalProduct] = useState(null); // 🔥 新增：历史记录弹窗状态
             
             const [role, setRole] = useState('guest'); 
             const [currentUser, setCurrentUser] = useState(null); 
@@ -960,6 +1059,7 @@
                         if (Array.isArray(content)) content = { products: content, customNodes: {}, settings: { visitors: [], logs: [] } };
                         if (!content.settings) content.settings = { visitors: [], logs: [] };
                         if (!content.settings.customInputHistory) content.settings.customInputHistory = [];
+                        if (!content.settings.globalBackups) content.settings.globalBackups = [];
                         
                         // 兼容性迁移
                         if (content.products) {
@@ -984,7 +1084,7 @@
 
                         setAppData(content);
                     } else {
-                        setAppData({ products: [], customNodes: {}, settings: { visitors: [], logs: [], customInputHistory: [] } });
+                        setAppData({ products: [], customNodes: {}, settings: { visitors: [], logs: [], customInputHistory: [], globalBackups: [] } });
                     }
                     setLoading(false); setSyncStatus('saved');
                     setHasUnsavedChanges(false);
@@ -994,24 +1094,6 @@
                         .channel('public:projects')
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'projects', filter: 'id=eq.main' }, (payload) => {
                             if (payload.new && payload.new.content) {
-                                // 检查是否有未保存的更改
-                                // 由于在闭包中无法直接获取最新的 hasUnsavedChanges，这里采用一种简化策略：
-                                // 如果用户开启了手动同步模式，我们假设用户在编辑期间不希望被云端覆盖。
-                                // 但为了能收到他人的更新，我们在界面上提示（此处简化为若无未保存修改则直接更新）
-                                // 注意：在 useEffect 里的闭包问题，这里使用 setState 的回调形式或者 ref 来判断会更准确
-                                // 为简化代码复杂度，这里暂不使用 ref 穿透，而是直接更新。
-                                // *更优解*：在手动模式下，我们可以暂停自动接收更新，或者只在初始化时拉取。
-                                // 这里为了实现“手动同步”的纯粹性，我们**不**自动应用实时更新，除非通过手动拉取（刷新页面）。
-                                // 或者只在初始化时拉取。
-                                // 但为了协作，最好还是能看到。
-                                // 修正：既然用户说“每次编辑反应很慢”，说明是写操作卡。读操作不卡。
-                                // 所以我们这里依然可以接收更新，只要不覆盖用户正在输入的内容即可。
-                                // 鉴于 React 状态管理的复杂性，最安全的“手动同步”策略是：
-                                // 1. 初始化拉取。
-                                // 2. 只有手动点击“同步”时才上传。
-                                // 3. 只有手动刷新页面时才拉取最新。
-                                // 这样最符合“离线编辑+手动提交”的心智模型。
-                                // 所以这里我们**注释掉**自动 setAppData 的逻辑，只保留 console log。
                                 console.log("云端有新版本:", payload.new.content);
                             }
                         })
@@ -1084,6 +1166,77 @@
                     const newHistory = [input, ...currentHistory.filter(i => i !== input)].slice(0, 10);
                     return { ...prev, settings: { ...prev.settings, customInputHistory: newHistory } };
                 });
+            };
+
+            const saveGlobalBackup = (note) => {
+                handleSetAppData(prev => {
+                    const newBackup = {
+                        id: Date.now(),
+                        timestamp: new Date().toISOString(),
+                        note: note || '手动备份',
+                        products: JSON.parse(JSON.stringify(prev.products)),
+                        customNodes: JSON.parse(JSON.stringify(prev.customNodes))
+                    };
+                    const currentBackups = prev.settings.globalBackups || [];
+                    const newBackups = [newBackup, ...currentBackups].slice(0, 5);
+                    return { ...prev, settings: { ...prev.settings, globalBackups: newBackups } };
+                }, '全局备份', '创建了全案排期备份');
+            };
+
+            const restoreGlobalBackup = (backupId) => {
+                const backup = appData.settings.globalBackups.find(b => b.id === backupId);
+                if (!backup) return;
+                if(!confirm(`确定要恢复到 [${new Date(backup.timestamp).toLocaleString()}] 的备份吗？\n当前所有排期将被覆盖！`)) return;
+
+                handleSetAppData(prev => ({
+                    ...prev,
+                    products: backup.products,
+                    customNodes: backup.customNodes
+                }), '全局恢复', `恢复到了 ${new Date(backup.timestamp).toLocaleString()} 的备份`);
+            };
+
+            // 🔥 新增：单品备份处理
+            const handleBackup = (e, productId) => {
+                if(e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+                const note = window.prompt("为当前状态添加备份备注：");
+                if (note === null) return;
+                
+                setProducts(prev => prev.map(p => {
+                    if (p.id !== productId) return p;
+                    const { backups, ...rest } = p; 
+                    const snapshot = JSON.parse(JSON.stringify(rest)); 
+                    const newBackups = [{
+                        id: Date.now(),
+                        timestamp: new Date().toISOString(),
+                        note: note || '手动备份',
+                        data: snapshot
+                    }, ...(backups || [])].slice(0, 10);
+                    
+                    return { ...p, backups: newBackups };
+                }), '单品备份', `备份了产品 ID:${productId}`);
+            };
+
+            // 🔥 新增：单品恢复处理
+            const handleRestore = (productId, backupItem) => {
+                if(!window.confirm(`确定要回滚到 [${new Date(backupItem.timestamp).toLocaleString()}] 的版本吗？`)) return;
+                
+                setProducts(prev => prev.map(p => {
+                    if (p.id !== productId) return p;
+                    return {
+                        ...p, 
+                        ...backupItem.data,
+                        backups: p.backups 
+                    };
+                }), '单品恢复', `恢复了产品 ID:${productId}`);
+                setHistoryModalProduct(null);
+            };
+
+            const clearAllSchedules = () => {
+                if(!confirm("⚠️ 高风险操作警告 ⚠️\n\n确定要清空【所有产品】的【所有排期】吗？\n此操作不可单独撤销！建议先备份。")) return;
+                setProducts(prev => prev.map(p => ({ ...p, calendarEvents: {} })), '清空排期', '一键清空了所有产品的排期');
             };
 
             const handleLogin = () => {
@@ -1266,6 +1419,8 @@
                                 customNodes={appData.customNodes}
                                 canEdit={canEdit}
                                 currentUser={currentUser}
+                                handleBackup={handleBackup} // 🔥 修复：传递 handleBackup
+                                setHistoryModalProduct={setHistoryModalProduct} // 🔥 修复：传递 setHistoryModalProduct
                             />
                         )}
                         {view === 'product-detail' && activeProduct && (
@@ -1287,6 +1442,10 @@
                                 updateProductDeep={updateProductDeep}
                                 customInputHistory={appData.settings.customInputHistory || []}
                                 addCustomInputHistory={addCustomInputHistory}
+                                globalBackups={appData.settings.globalBackups || []}
+                                saveGlobalBackup={saveGlobalBackup}
+                                restoreGlobalBackup={restoreGlobalBackup}
+                                clearAllSchedules={clearAllSchedules}
                             />
                         )}
                     </main>
@@ -1375,6 +1534,37 @@
                                             ))}
                                         </div>
                                     )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 🔥 新增：单品历史记录管理 Modal 🔥 */}
+                    {historyModalProduct && (
+                        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setHistoryModalProduct(null)}>
+                            <div className="bg-white rounded-xl shadow-2xl w-[500px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                                <div className="p-5 border-b flex justify-between items-center">
+                                    <h3 className="font-bold text-lg flex items-center gap-2"><History className="text-indigo-600"/> 历史版本 - {historyModalProduct.name}</h3>
+                                    <button onClick={() => setHistoryModalProduct(null)}><X size={18} className="text-slate-400 hover:text-slate-600"/></button>
+                                </div>
+                                <div className="p-5 overflow-y-auto flex-1 space-y-3">
+                                    {(!historyModalProduct.backups || historyModalProduct.backups.length === 0) && (
+                                        <div className="text-center text-slate-400 py-8">暂无备份记录</div>
+                                    )}
+                                    {(historyModalProduct.backups || []).map(bk => (
+                                        <div key={bk.id} className="border p-3 rounded-lg flex justify-between items-center bg-slate-50 hover:bg-white hover:shadow-sm transition-all">
+                                            <div>
+                                                <div className="font-bold text-sm text-slate-700">{bk.note}</div>
+                                                <div className="text-xs text-slate-400 mt-1">{new Date(bk.timestamp).toLocaleString()}</div>
+                                            </div>
+                                            <button 
+                                                onClick={() => handleRestore(historyModalProduct.id, bk)}
+                                                className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded text-xs font-bold border border-indigo-200"
+                                            >
+                                                恢复
+                                            </button>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>
